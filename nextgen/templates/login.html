@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Sign in · NextGenPathashala{% endblock %}
+{% block head_extra %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/lovable-ui.css') }}">
+{% endblock %}
+{% block content %}
+<main class="auth-layout">
+  <section class="auth-brand">
+    <div class="brand-mark">N<span>+</span></div>
+    <p class="eyebrow">YOUR CLASSROOM, CONNECTED</p>
+    <h1>Every class.<br>One clear place.</h1>
+    <p class="brand-copy">A calmer way to manage timetables, attendance, homework and notices across your institution.</p>
+    <div class="feature-pills"><span>◷ Timetable</span><span>✓ Attendance</span><span>▤ Homework</span><span>✦ Notices</span></div>
+    <div class="auth-decoration decoration-one"></div><div class="auth-decoration decoration-two"></div>
+  </section>
+  <section class="auth-panel">
+    <div class="auth-card">
+      <div class="mobile-brand"><div class="brand-mark small">N<span>+</span></div><strong>NextGenPathashala</strong></div>
+      <p class="eyebrow">WELCOME BACK</p><h2>Sign in to your workspace</h2>
+      <p class="muted">Use the account provided by your institution.</p>
+      <form method="post" class="stack-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label for="email">Email address</label><input id="email" name="email" type="email" autocomplete="username" required maxlength="255" placeholder="you@example.com">
+        <label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required>
+        <label for="institution">Institution name <span class="optional">(if needed)</span></label><input id="institution" name="institution" type="text" placeholder="Your school or tuition centre">
+        <button class="button button-primary button-wide" type="submit">Sign in <span aria-hidden="true">→</span></button>
+      </form>
+      <p class="auth-foot">Setting up a new institution? <a href="{{ url_for('web.register') }}">Create a workspace</a></p>
+      <p class="tiny muted">Use a unique password. Your institution's data is kept separate from other workspaces.</p>
+    </div>
+  </section>
+</main>
+{% endblock %}

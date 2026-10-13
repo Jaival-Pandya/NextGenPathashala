@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block title %}Workspace · NextGenPathashala{% endblock %}
+{% block head_extra %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/lovable-ui.css') }}">
+  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+{% endblock %}
+{% block content %}
+<div class="app-shell shell" id="appShell" data-role="{{ current_user.role }}">
+  <aside class="sidebar" id="sidebar">
+    <a class="brand-lockup" href="{{ url_for('web.dashboard') }}"><div class="brand-mark small">N<span>+</span></div><span>NextGen<span class="brand-light">Pathashala</span></span></a>
+    <div class="workspace-pill"><span class="workspace-dot"></span><div><small>WORKSPACE</small><strong>{{ institution.name }}</strong></div></div>
+    <p class="nav-label">WORKSPACE</p>
+    <nav class="side-nav" aria-label="Main navigation">
+      <button class="nav-link active" data-section="overview"><span>⌂</span> Overview</button>
+      <button class="nav-link" data-section="timetable"><span>◷</span> Timetable</button>
+      <button class="nav-link" data-section="attendance"><span>✓</span> Attendance</button>
+      <button class="nav-link" data-section="homework"><span>▤</span> Homework</button>
+      <button class="nav-link" data-section="notices"><span>✦</span> Notices <span class="nav-count" id="noticeCount"></span></button>
+      <button class="nav-link" data-section="study"><span>✧</span> Study Lab</button>
+      <button class="nav-link" data-section="feedback"><span>♡</span> Feedback</button>
+      <button class="nav-link admin-only" data-section="manage"><span>⚙</span> Classes & people</button>
+    </nav>
+    <div class="sidebar-bottom"><div class="mini-help"><span>✧</span><div><strong>Keep the day in sync</strong><p>Share updates once. Keep everyone informed.</p></div></div>
+      <div class="profile-row"><div class="avatar" id="userAvatar">N</div><div class="profile-meta"><strong id="profileName">{{ current_user.name }}</strong><span id="profileRole">{{ current_user.role|title }}</span></div><form method="post" action="{{ url_for('web.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="icon-button" title="Sign out" aria-label="Sign out">↗</button></form></div>
+    </div>
+  </aside>
+  <main class="main main-panel">
+    <header class="topbar"><button class="mobile-menu icon-button" id="mobileMenu" aria-label="Toggle navigation">☰</button><div class="breadcrumb"><span>{{ institution.name }}</span><b>/</b><strong id="currentPageName">Overview</strong></div><div class="topbar-actions"><span class="connection-status" id="connectionStatus"><span></span> Connected</span><button type="button" class="icon-button theme-toggle" id="themeToggle" aria-label="Switch to dark theme" title="Toggle colour theme">◐</button><button class="button button-soft install-button" id="installButton" hidden>Install app ↓</button><div class="top-avatar" id="topAvatar">N</div></div></header>
+    <div class="content-wrap page-content">
+      <section class="page-section active" id="section-overview">
+        <section class="panel onboarding-panel admin-only" id="quickStartPanel">
+          <div class="panel-heading"><div><p class="eyebrow">FIRST 10 MINUTES</p><h2>Get your test workspace ready</h2><p>Create one sample class and walk through the full student experience before inviting a real group.</p></div><span class="soft-tag">Pilot guide</span></div>
+          <div class="quick-start-steps">
+            <button type="button" data-go="manage"><span>1</span><strong>Create a class</strong><small>Set up a class or tuition batch.</small></button>
+            <button type="button" data-go="manage"><span>2</span><strong>Add a teacher and student</strong><small>Use fictional test accounts.</small></button>
+            <button type="button" data-go="timetable"><span>3</span><strong>Schedule one session</strong><small>Assign a subject, time and teacher.</small></button>
+            <button type="button" data-go="feedback"><span>4</span><strong>Tell us what to fix</strong><small>Share bugs and usability feedback.</small></button>
+          </div>
+          <p class="pilot-safety-note">Early test only: use fictional or authorized data. Keep your normal register as the source of truth until reliability and backups have been tested.</p>
+        </section>
+        <div class="page-heading"><div><p class="eyebrow" id="todayLabel">YOUR DAY AT A GLANCE</p><h1 id="greeting">Good day!</h1><p class="muted">A quick view of what's happening in your institution.</p></div><button class="button button-primary admin-only" data-go="timetable">＋ Schedule a class</button></div>
+        <div class="stats-grid" id="statsGrid"><article class="stat-card"><span class="stat-icon purple">◷</span><span class="stat-label">Today's classes</span><strong>—</strong><span class="stat-note">Loading your schedule</span></article></div>
+        <div class="dashboard-grid">
+          <section class="panel panel-span-two"><div class="panel-heading"><div><h2>Today's timetable</h2><p>Keep your next class in sight.</p></div><button class="text-button" data-go="timetable">View timetable →</button></div><div id="overviewSessions" class="list-stack"><div class="empty-state small-empty">Loading your schedule…</div></div></section>
+          <section class="panel"><div class="panel-heading"><div><h2>Quick actions</h2><p>Pick up where you left off.</p></div></div><div class="quick-actions"><button data-go="attendance"><span class="quick-icon lavender">✓</span><span><strong>Take attendance</strong><small>Open a class register</small></span><b>→</b></button><button data-go="homework"><span class="quick-icon peach">▤</span><span><strong>Homework</strong><small>Review assignments</small></span><b>→</b></button><button data-go="notices"><span class="quick-icon mint">✦</span><span><strong>Notices</strong><small>Read the latest updates</small></span><b>→</b></button></div></section>
+          <section class="panel"><div class="panel-heading"><div><h2>Homework snapshot</h2><p>Recent assignments and deadlines.</p></div><button class="text-button" data-go="homework">All work →</button></div><div id="overviewAssignments" class="list-stack"><div class="empty-state small-empty">Loading assignments…</div></div></section>
+          <section class="panel"><div class="panel-heading"><div><h2>Latest notices</h2><p>Updates for your classes.</p></div><button class="text-button" data-go="notices">All notices →</button></div><div id="overviewNotices" class="list-stack"><div class="empty-state small-empty">Loading notices…</div></div></section>
+        </div>
+      </section>
+
+      <section class="page-section" id="section-timetable">
+        <div class="page-heading"><div><p class="eyebrow">PLAN THE DAY</p><h1>Timetable</h1><p class="muted">See scheduled classes or create a session for your institution.</p></div><label class="date-filter">Choose date<input id="timetableDate" type="date"></label></div>
+        <section class="panel admin-only"><div class="panel-heading"><div><h2>Schedule a class</h2><p>Conflicting teacher or room bookings are blocked.</p></div><span class="soft-tag">Admin</span></div>
+          <form id="sessionForm" class="form-grid">
+            <label>Class / batch<select id="sessionClass" required><option value="">Choose class</option></select></label>
+            <label>Subject<input id="sessionSubject" list="sessionSubjectOptions" required maxlength="120" placeholder="e.g. Mathematics"><datalist id="sessionSubjectOptions"></datalist></label>
+            <label>Teacher<select id="sessionTeacher"><option value="">Unassigned</option></select></label>
+            <label>Room / location<input id="sessionRoom" maxlength="80" placeholder="e.g. Room 204"></label>
+            <label>Starts at<input id="sessionStarts" type="datetime-local" required></label>
+            <label>Ends at<input id="sessionEnds" type="datetime-local" required></label>
+            <div class="form-actions"><button class="button button-primary" type="submit">Create class session</button></div>
+          </form>
+        </section>
+        <section class="panel"><div class="panel-heading"><div><h2>Scheduled sessions</h2><p id="scheduleSubtitle">Your selected day's classes.</p></div><button class="button button-soft" id="refreshSessions">↻ Refresh</button></div><div id="timetableList" class="list-stack"></div></section>
+      </section>
+
+      <section class="page-section" id="section-attendance">
+        <div class="page-heading"><div><p class="eyebrow">CLASSROOM REGISTER</p><h1>Attendance</h1><p class="muted">Mark the register and keep a reliable history.</p></div></div>
+        <section class="panel staff-only"><div class="panel-heading"><div><h2>Choose a class session</h2><p>Only your institution's authorized sessions appear here.</p></div></div><div class="inline-form"><label class="date-filter">Session date<input id="attendanceDate" type="date"></label><label class="grow-field">Class session<select id="attendanceSession"><option value="">Select a session</option></select></label><button class="button button-primary" id="loadAttendance">Open register</button></div><form id="attendanceForm"><div id="attendanceRoster" class="table-wrap"></div><div id="attendanceActions" class="form-actions" hidden><button class="button button-primary" type="submit">Save attendance</button></div></form></section>
+        <section class="panel student-only"><div class="panel-heading"><div><h2>My attendance history</h2><p>Sessions recorded for your enrolled classes.</p></div><button class="button button-soft" id="refreshMyAttendance">↻ Refresh</button></div><div id="myAttendanceList" class="table-wrap"></div></section>
+        <section class="panel admin-only"><div class="panel-heading"><div><h2>Attendance summary</h2><p>Recent attendance entries across your institution.</p></div><button class="button button-soft" id="loadReport">Load report</button></div><div id="attendanceReport" class="table-wrap"><div class="empty-state small-empty">Load the report to see recent records.</div></div></section>
+      </section>
+
+      <section class="page-section" id="section-homework">
+        <div class="page-heading"><div><p class="eyebrow">LEARNING, ORGANIZED</p><h1>Homework & assignments</h1><p class="muted">Create work, see deadlines and record student responses.</p></div></div>
+        <section class="panel staff-only"><div class="panel-heading"><div><h2>Create an assignment</h2><p>Publish work to one class or batch.</p></div><span class="soft-tag">Teacher tools</span></div>
+          <form id="assignmentForm" class="form-grid"><label>Class / batch<select id="assignmentClass" required><option value="">Choose class</option></select></label><label>Subject<input id="assignmentSubject" list="assignmentSubjectOptions" required maxlength="120" placeholder="e.g. Science"><datalist id="assignmentSubjectOptions"></datalist></label><label class="full-field">Title<input id="assignmentTitle" required maxlength="200" placeholder="e.g. Chapter 3 worksheet"></label><label class="full-field">Instructions<textarea id="assignmentInstructions" rows="3" maxlength="10000" placeholder="What should students complete?"></textarea></label><label>Due date and time<input id="assignmentDue" type="datetime-local"></label><div class="form-actions align-end"><button class="button button-primary" type="submit">Publish assignment</button></div></form>
+        </section>
+        <section class="panel"><div class="panel-heading"><div><h2>Assignment list</h2><p>Recent work for your classes.</p></div><button class="button button-soft" id="refreshAssignments">↻ Refresh</button></div><div id="assignmentList" class="list-stack"></div></section>
+      </section>
+
+      <section class="page-section" id="section-notices">
+        <div class="page-heading"><div><p class="eyebrow">KEEP EVERYONE INFORMED</p><h1>Notices & announcements</h1><p class="muted">Share important updates with a class or your whole institution.</p></div></div>
+        <section class="panel staff-only"><div class="panel-heading"><div><h2>Publish a notice</h2><p>Class-specific notices are visible only to eligible members.</p></div></div><form id="noticeForm" class="stack-form"><label for="noticeTitle">Notice title</label><input id="noticeTitle" required maxlength="200" placeholder="e.g. Holiday on Friday"><label for="noticeBody">Message</label><textarea id="noticeBody" required rows="4" maxlength="10000" placeholder="Write the announcement…"></textarea><label for="noticeClass">Audience</label><select id="noticeClass"><option value="all">Entire institution</option></select><div><button class="button button-primary" type="submit">Publish notice</button></div></form></section>
+        <section class="panel"><div class="panel-heading"><div><h2>Notice board</h2><p>Latest announcements available to you.</p></div><button class="button button-soft" id="refreshNotices">↻ Refresh</button></div><div id="noticeList" class="notice-grid"></div></section>
+      </section>
+
+      <section class="page-section" id="section-study">
+        <div class="page-heading"><div><p class="eyebrow">LEARN · PRACTISE · IMPROVE</p><h1>Study Lab</h1><p class="muted">Ask questions across subjects, practise MCQs and take mock tests. The AI tutor needs an administrator-configured server API key.</p></div></div>
+        <div class="dashboard-grid study-grid">
+          <section class="panel staff-only panel-span-two"><div class="panel-heading"><div><h2>Create a classroom assessment</h2><p>Build a multiple-choice test for one of your classes. Scores are calculated on the server and visible to teachers.</p></div><span class="soft-tag">Teacher tools</span></div>
+            <form id="assessmentForm" class="stack-form">
+              <label for="assessmentClass">Class / batch<select id="assessmentClass" required><option value="">Choose class</option></select></label>
+              <label for="assessmentTitle">Assessment title<input id="assessmentTitle" required maxlength="200" placeholder="e.g. Unit 2 revision test"></label>
+              <label for="assessmentInstructions">Instructions (optional)<textarea id="assessmentInstructions" rows="2" maxlength="10000" placeholder="Read each question carefully."></textarea></label>
+              <div class="subsection-heading"><h3>Add questions (at least one)</h3><span class="tiny muted">Four-option MCQ builder</span></div>
+              <label for="assessmentQuestionPrompt">Question<textarea id="assessmentQuestionPrompt" rows="2" maxlength="500" placeholder="Write one clear question"></textarea></label>
+              <div class="form-grid">
+                <label for="assessmentOption0">Option A<input id="assessmentOption0" maxlength="200" placeholder="Option A"></label>
+                <label for="assessmentOption1">Option B<input id="assessmentOption1" maxlength="200" placeholder="Option B"></label>
+                <label for="assessmentOption2">Option C<input id="assessmentOption2" maxlength="200" placeholder="Option C"></label>
+                <label for="assessmentOption3">Option D<input id="assessmentOption3" maxlength="200" placeholder="Option D"></label>
+              </div>
+              <label for="assessmentCorrectIndex">Correct answer<select id="assessmentCorrectIndex"><option value="0">Option A</option><option value="1">Option B</option><option value="2">Option C</option><option value="3">Option D</option></select></label>
+              <label for="assessmentExplanation">Answer explanation (optional)<textarea id="assessmentExplanation" rows="2" maxlength="1000" placeholder="Explain why the answer is correct."></textarea></label>
+              <div class="row-between wrap"><button id="addAssessmentQuestion" class="button button-soft" type="button">Add question to test</button><span id="assessmentDraftCount" class="tiny muted">0 questions added</span></div>
+              <div id="assessmentDraftList" class="list-stack" aria-live="polite"></div>
+              <label for="assessmentDue">Deadline (optional)<input id="assessmentDue" type="datetime-local"></label>
+              <button class="button button-primary" type="submit">Publish assessment</button>
+            </form>
+          </section>
+          <section class="panel panel-span-two"><div class="panel-heading"><div><h2>Classroom assessments</h2><p>Students can complete published assessments; teachers can review class results.</p></div><button class="button button-soft" id="refreshAssessments" type="button">↻ Refresh</button></div><div id="assessmentList" class="list-stack"><div class="empty-state small-empty">Loading assessments…</div></div><div id="assessmentRunner" class="assessment-runner" aria-live="polite"></div></section>
+          <section class="panel panel-span-two"><div class="panel-heading"><div><h2>Study doubt helper</h2><p>Ask questions in your own words across subjects. The AI tutor explains concepts, works through examples and helps you study.</p></div><span class="soft-tag">Study assistant</span></div>
+            <div id="studyChatLog" class="study-chat-log" aria-live="polite"><div class="study-message tutor"><strong>Study Buddy</strong><p>Hi! Ask me about your subject, course notes, a tricky concept or exam preparation.</p></div></div>
+            <form id="studyChatForm" class="study-chat-form"><label class="sr-only" for="studyQuestion">Your study question</label><textarea id="studyQuestion" rows="2" maxlength="1200" required placeholder="e.g. Explain precision vs recall with an example…"></textarea><button class="button button-primary" type="submit">Ask Study Buddy</button></form>
+            <p class="tiny muted">AI answers can make mistakes. Verify important facts and syllabus-specific answers against your teacher’s notes. Do not enter passwords or sensitive personal information.</p>
+            <div class="subsection-heading"><h3>Ask from your course notes</h3><p class="muted tiny">Upload TXT, Markdown, or text-based PDF notes (max 5 MB each). Files are private to your signed-in account.</p></div>
+            <form id="studyMaterialForm" class="inline-form"><label class="grow-field" for="studyMaterialFile">Course notes<input id="studyMaterialFile" name="file" type="file" accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf" required></label><button class="button button-soft" type="submit">Upload notes</button></form>
+            <div id="studyMaterialList" class="list-stack" aria-live="polite"><p class="muted tiny">No notes loaded yet.</p></div>
+          </section>
+          <section class="panel"><div class="panel-heading"><div><h2>Practice MCQs</h2><p>Choose a topic and practise five questions.</p></div></div>
+            <label for="practiceTopic">Topic</label><select id="practiceTopic"><option value="all">Mixed revision</option><option value="python">Python</option><option value="ml">Machine learning</option><option value="nlp">NLP</option><option value="stats">Statistics</option><option value="maths">Mathematics</option><option value="science">Science</option><option value="english">English</option><option value="commerce">Commerce</option></select>
+            <button class="button button-primary" id="startPractice" type="button" style="margin-top:12px">Start practice</button><div id="practiceArea" class="study-quiz-area" aria-live="polite"></div>
+          </section>
+          <section class="panel"><div class="panel-heading"><div><h2>Mock test</h2><p>Ten mixed MCQs with instant scoring and explanations.</p></div></div>
+            <button class="button button-soft" id="startMockTest" type="button">Start 10-question mock test</button><div id="mockTestArea" class="study-quiz-area" aria-live="polite"></div>
+            <div class="subsection-heading"><h3>Recent scores on this device</h3></div><div id="studyScoreHistory" class="list-stack"><p class="muted tiny">Your local score history will appear here.</p></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="page-section" id="section-feedback">
+        <div class="page-heading"><div><p class="eyebrow">HELP IMPROVE THE PRODUCT</p><h1>Feedback & issue reports</h1><p class="muted">Tell us what was confusing, what failed, or what would make your daily workflow better.</p></div></div>
+        <section class="panel"><div class="panel-heading"><div><h2>Send feedback</h2><p>Do not include passwords or sensitive student information.</p></div></div>
+          <form id="feedbackForm" class="stack-form feedback-form">
+            <label for="feedbackCategory">What kind of feedback is this?<select id="feedbackCategory" required><option value="bug">Something is broken</option><option value="usability">Something is confusing or slow</option><option value="idea">Feature idea</option><option value="other">Other feedback</option></select></label>
+            <label for="feedbackPage">Where did it happen? <span class="optional">Optional</span><input id="feedbackPage" maxlength="120" placeholder="e.g. Attendance, timetable, login"></label>
+            <label for="feedbackMessage">What happened or what should improve?<textarea id="feedbackMessage" rows="5" maxlength="3000" required placeholder="Tell us what you tried, what you expected, and what happened instead."></textarea></label>
+            <div><button class="button button-primary" type="submit">Send feedback</button></div>
+          </form>
+        </section>
+        <section class="panel admin-only"><div class="panel-heading"><div><h2>Feedback from this workspace</h2><p>Review comments shared by your institution's users.</p></div><button class="button button-soft" id="refreshFeedback">↻ Refresh</button></div><div id="feedbackList" class="list-stack"><div class="empty-state small-empty">No feedback submitted yet.</div></div></section>
+      </section>
+
+      <section class="page-section" id="section-manage">
+        <div class="page-heading"><div><p class="eyebrow">SET UP YOUR WORKSPACE</p><h1>Classes & people</h1><p class="muted">Create a class, add accounts and enroll students.</p></div></div>
+        <div class="management-grid">
+          <section class="panel"><div class="panel-heading"><div><h2>Create a class or batch</h2><p>Start with the groups your institution teaches.</p></div></div><form id="classForm" class="stack-form"><label for="className">Class / batch name</label><input id="className" required maxlength="140" placeholder="e.g. FY BSc AI — Division A"><label for="classKind">Type</label><select id="classKind"><option value="school">School</option><option value="college">College</option><option value="tuition">Tuition / coaching</option><option value="course">Short course</option><option value="other">Other</option></select><label for="classYear">Academic year <span class="optional">(optional)</span></label><input id="classYear" maxlength="30" placeholder="e.g. 2026–27"><button class="button button-primary" type="submit">Create class</button></form><div class="subsection-heading"><h3>Your classes</h3><button class="text-button" id="refreshClasses">Refresh</button></div><div id="classList" class="list-stack"></div></section>
+          <section class="panel"><div class="panel-heading"><div><h2>Add an account</h2><p>Create teacher or student login credentials.</p></div></div><form id="userForm" class="stack-form"><label for="userName">Full name</label><input id="userName" required maxlength="120" placeholder="Full name"><label for="userEmail">Email</label><input id="userEmail" required type="email" maxlength="255" placeholder="name@example.com"><label for="userRole">Role</label><select id="userRole"><option value="teacher">Teacher</option><option value="student">Student</option></select><label for="userPassword">Initial password</label><input id="userPassword" type="password" required minlength="10" autocomplete="new-password" placeholder="At least 10 characters"><button class="button button-primary" type="submit">Create account</button><p class="tiny muted">Share the initial password securely. Password reset and invitations are planned for a later release.</p></form><div class="subsection-heading"><h3>Enroll a student</h3></div><form id="enrollmentForm" class="stack-form compact-form"><label for="enrollClass">Class / batch</label><select id="enrollClass" required><option value="">Choose class</option></select><label for="enrollStudent">Student</label><select id="enrollStudent" required><option value="">Choose student</option></select><button class="button button-soft" type="submit">Enroll student</button></form></section>
+          <section class="panel admin-only">
+            <div class="panel-heading"><div><h2>Manage subjects</h2><p>Keep a reusable subject list for each class or batch.</p></div><span class="soft-tag">Class setup</span></div>
+            <form id="subjectForm" class="stack-form">
+              <label for="subjectClass">Class / batch<select id="subjectClass" required><option value="">Choose class</option></select></label>
+              <label for="subjectName">Subject name<input id="subjectName" required maxlength="120" placeholder="e.g. Mathematics"></label>
+              <button class="button button-primary" type="submit">Add subject</button>
+            </form>
+            <div class="subsection-heading"><h3>Subjects in this class</h3><button class="text-button" id="refreshSubjects" type="button">Refresh</button></div>
+            <div id="subjectList" class="list-stack"><div class="empty-state small-empty">Select a class to see its subjects.</div></div>
+          </section>
+          <section class="panel admin-only">
+            <div class="panel-heading"><div><h2>Assign teachers</h2><p>Connect teachers to classes before scheduling.</p></div><span class="soft-tag">Staff setup</span></div>
+            <form id="classTeacherForm" class="stack-form">
+              <label for="classTeacherClass">Class / batch<select id="classTeacherClass" required><option value="">Choose class</option></select></label>
+              <label for="classTeacherUser">Teacher<select id="classTeacherUser" required><option value="">Choose teacher</option></select></label>
+              <button class="button button-primary" type="submit">Assign teacher</button>
+            </form>
+            <div class="subsection-heading"><h3>Assigned teachers</h3><button class="text-button" id="refreshClassTeachers" type="button">Refresh</button></div>
+            <div id="classTeacherList" class="list-stack"><div class="empty-state small-empty">Select a class to see assigned teachers.</div></div>
+          </section>
+          <section class="panel bulk-import-panel admin-only" style="grid-column:1/-1;">
+            <div class="panel-heading"><div><h2>Import students from Excel or CSV</h2><p>Save time when setting up a class with an existing student list.</p></div><span class="soft-tag">Bulk import</span></div>
+            <form id="studentImportForm" class="form-grid">
+              <label for="studentImportClass">Class / batch<select id="studentImportClass" required><option value="">Choose class</option></select></label>
+              <label for="studentImportFile">Student spreadsheet<input id="studentImportFile" type="file" accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" required><span class="field-help">Expected column headers: Name, Email. Student Code is optional. Up to 300 rows per import.</span><a class="text-button" href="{{ url_for('static', filename='student-import-template.csv') }}" download>Download CSV template</a></label>
+              <div class="form-actions"><button class="button button-primary" type="submit">Preview spreadsheet</button></div>
+            </form>
+            <div id="studentImportPreview" class="import-preview" hidden></div>
+            <div id="studentImportResult" class="import-result" hidden aria-live="polite"></div>
+          </section>
+        </div>
+      </section>
+      <nav class="bottom-nav" id="bottomNav" aria-label="Mobile navigation">
+        <button class="bn-item nav-link active" data-section="overview"><span aria-hidden="true">⌂</span><small>Home</small></button>
+        <button class="bn-item nav-link" data-section="timetable"><span aria-hidden="true">◷</span><small>Timetable</small></button>
+        <button class="bn-item nav-link" data-section="attendance"><span aria-hidden="true">✓</span><small>Attend</small></button>
+        <button class="bn-item nav-link" data-section="homework"><span aria-hidden="true">▤</span><small>Homework</small></button>
+        <button class="bn-item nav-link" data-section="notices"><span aria-hidden="true">✦</span><small>Notices</small></button>
+      </nav>
+      <footer class="app-footer"><span>NextGenPathashala</span><span>One place for the school day.</span><a href="/health" target="_blank" rel="noreferrer">System status</a>{% if is_pilot_owner %}<a href="{{ url_for('web.pilot_inquiries') }}">Pilot inquiries</a>{% endif %}</footer>
+    </div>
+  </main>
+</div>
+{% endblock %}

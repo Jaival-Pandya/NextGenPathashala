@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en" class="light-theme">
+<head>
+  <script>
+    // Restore the user's theme before the page paints to reduce theme flicker.
+    try {
+      if (localStorage.getItem('ngg_theme') === 'dark') {
+        document.documentElement.classList.replace('light-theme', 'dark-mode');
+      }
+    } catch (_) { /* Storage can be disabled; the light theme remains usable. */ }
+  </script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#302052">
+  <meta name="csrf-token" content="{{ csrf_token_value }}">
+  <meta name="description" content="Daily education management for schools, colleges and tuition institutes.">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
+  <link rel="icon" href="{{ url_for('static', filename='icons/icon-192.png') }}" type="image/png">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  {% block head_extra %}{% endblock %}
+  <title>{% block title %}NextGenPathashala{% endblock %}</title>
+  <script defer src="{{ url_for('static', filename='js/app.js') }}"></script>
+</head>
+<body>
+  <div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}<div class="flash-stack container">{% for category, message in messages %}<div class="flash flash-{{ category }}">{{ message }}</div>{% endfor %}</div>{% endif %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</body>
+</html>

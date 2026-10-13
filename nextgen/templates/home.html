@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}NextGenPathashala · Make every class day easier{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">{% endblock %}
+{% block content %}
+<header class="landing-nav">
+  <a class="landing-brand" href="{{ url_for('web.home') }}" aria-label="NextGenPathashala home"><span class="brand-mark">N<span>+</span></span><span>NextGen<span class="brand-light">Pathashala</span></span></a>
+  <nav aria-label="Main navigation"><a href="#features">Features</a><a href="#how-it-works">How it works</a><a href="#pilot">Join the pilot</a></nav>
+  <div class="landing-actions"><a class="nav-signin" href="{{ url_for('web.login') }}">Sign in</a><a class="button button-primary" href="{{ url_for('web.register') }}">Try it with your team <span aria-hidden="true">→</span></a></div>
+</header>
+<main>
+  <section class="landing-hero">
+    <div class="hero-copy">
+      <span class="announcement"><span class="announcement-dot"></span> EARLY ACCESS · BUILT WITH EDUCATOR FEEDBACK</span>
+      <h1>Less time coordinating.<br><span>More time teaching.</span></h1>
+      <p class="hero-lede">Timetables, attendance, homework and notices in one clear workspace—designed for schools, colleges and tuition institutes.</p>
+      <div class="hero-actions"><a class="button button-primary button-large" href="{{ url_for('web.register') }}">Create a test workspace <span aria-hidden="true">↗</span></a><a class="hero-secondary" href="#how-it-works">See how it works <span aria-hidden="true">↓</span></a></div>
+      <div class="hero-promises"><span>✓ Use sample data first</span><span>✓ Works on phone and computer</span><span>✓ Share feedback with the team</span></div>
+    </div>
+    <div class="hero-preview" aria-label="Illustrative dashboard preview">
+      <div class="preview-glow"></div><div class="preview-window">
+        <div class="preview-top"><div class="preview-brand"><span class="preview-mark">N+</span><strong>Today's workspace</strong></div><span class="preview-live"><i></i> SAMPLE VIEW</span></div>
+        <div class="preview-welcome"><div><small>MONDAY · YOUR DAY AT A GLANCE</small><h2>Everything in sync.</h2></div><span class="preview-avatar">NG</span></div>
+        <div class="preview-stats"><div><span class="mini-icon purple">◷</span><small>Classes</small><strong>04</strong></div><div><span class="mini-icon green">✓</span><small>Attendance</small><strong>Ready</strong></div><div><span class="mini-icon orange">▤</span><small>Homework</small><strong>03</strong></div></div>
+        <div class="preview-schedule"><div class="preview-subhead"><strong>Today's timetable</strong><span>Example data</span></div><div class="preview-class"><time>09:00</time><span class="subject-dot dot-purple"></span><div><strong>Mathematics</strong><small>Class A · Room 02</small></div><span class="preview-status">UP NEXT</span></div><div class="preview-class"><time>10:30</time><span class="subject-dot dot-green"></span><div><strong>Science</strong><small>Class B · Lab</small></div></div><div class="preview-class"><time>12:00</time><span class="subject-dot dot-orange"></span><div><strong>Study session</strong><small>Coaching batch · Room 01</small></div></div></div>
+        <div class="preview-notice"><span class="notice-symbol">✦</span><div><strong>One notice. Right audience.</strong><small>Share a class update without a long message thread.</small></div></div>
+      </div><p class="preview-caption">Illustrative preview only. These are sample figures, not live institution data.</p>
+    </div>
+  </section>
+
+  <section class="trust-strip" aria-label="Product principles"><span>DESIGNED FOR DAILY USE</span><b>One workspace</b><i></i><b>Role-based access</b><i></i><b>Feedback-led pilot</b></section>
+
+  <section class="landing-section" id="features">
+    <div class="section-heading"><p class="eyebrow">THE EVERYDAY WORKFLOW</p><h2>Four jobs. One place to start.</h2><p>Give your team a simple way to organize daily class operations without searching through separate registers, messages and lists.</p></div>
+    <div class="feature-grid">
+      <article class="feature-card"><span class="feature-icon icon-purple">◷</span><p class="feature-number">01 / PLAN</p><h3>Timetable</h3><p>Organize class sessions, teachers, rooms and timings. Find the day's schedule in seconds.</p><span class="feature-note">For administrators, teachers and students</span></article>
+      <article class="feature-card"><span class="feature-icon icon-green">✓</span><p class="feature-number">02 / RECORD</p><h3>Attendance</h3><p>Mark the class register, keep a record of changes and review attendance history.</p><span class="feature-note">Designed to reduce duplicate entry</span></article>
+      <article class="feature-card"><span class="feature-icon icon-orange">▤</span><p class="feature-number">03 / ASSIGN</p><h3>Homework</h3><p>Publish work with a deadline, share instructions and let students submit text responses.</p><span class="feature-note">A clear list of assigned work</span></article>
+      <article class="feature-card"><span class="feature-icon icon-blue">✦</span><p class="feature-number">04 / INFORM</p><h3>Notices</h3><p>Share updates with a class or your institution so people know where to look.</p><span class="feature-note">Class-targeted announcements</span></article>
+    </div>
+  </section>
+
+  <section class="audience-section" id="for-institutions"><div class="section-heading"><p class="eyebrow">BUILT AROUND YOUR SETUP</p><h2>Education is not one-size-fits-all.</h2><p>Start with the workflows that matter to your institution and tell us what is missing.</p></div>
+    <div class="audience-grid">
+      <article><div class="audience-symbol">⌂</div><h3>Schools</h3><p>Coordinate divisions, teacher schedules, class attendance, homework and notices for students.</p><span>Start with class-level organization</span></article>
+      <article><div class="audience-symbol">▦</div><h3>Colleges</h3><p>Arrange groups, subjects and sessions while exploring how the workflow fits your departments.</p><span>Validate your academic timetable needs</span></article>
+      <article><div class="audience-symbol">✎</div><h3>Tuition & coaching</h3><p>Manage batches, session schedules and homework from a simple dashboard.</p><span>Good starting point for an early pilot</span></article>
+    </div>
+  </section>
+
+  <section class="how-section" id="how-it-works">
+    <div class="section-heading"><p class="eyebrow">TRY IT IN A SMALL WORKSPACE</p><h2>See the value before inviting everyone.</h2><p>Create a separate test workspace and walk through one class before bringing in real teams.</p></div>
+    <div class="steps-grid"><article><span>1</span><h3>Create a workspace</h3><p>Use your institution name and your own test administrator account.</p></article><article><span>2</span><h3>Add one class</h3><p>Create a batch, then add one teacher and one fictional student.</p></article><article><span>3</span><h3>Try a class day</h3><p>Schedule a session, mark attendance, publish homework and post a notice.</p></article><article><span>4</span><h3>Share honest feedback</h3><p>Try the student login, note friction and use the feedback panel to report it.</p></article></div>
+    <div class="safety-callout"><span>i</span><p><strong>Early pilot guidance:</strong> use fictional or authorized test data. The MVP is still being validated; do not migrate sensitive student records or rely on it as the only operational register yet.</p></div>
+  </section>
+
+  <section class="pilot-section" id="pilot"><div class="pilot-copy"><p class="eyebrow">HELP SHAPE THE NEXT RELEASE</p><h2>Try it with your institution. Tell us what needs to improve.</h2><p>We're looking for educators and administrators willing to test the main workflows and share practical feedback. No exaggerated promises—your experience will help decide what gets built next.</p><div class="pilot-benefits"><span>✓ Guided first steps</span><span>✓ Share workflow gaps</span><span>✓ Help prioritize improvements</span></div><p class="pilot-small">Please don't include student names, medical information, marks or other sensitive personal data in this form.</p></div>
+    <form class="pilot-form" method="post" action="{{ url_for('web.pilot_request') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-heading"><span>EARLY ACCESS</span><h3>Request a pilot conversation</h3><p>Tell us a little about your setup.</p></div>
+      <div class="landing-form-grid"><label for="pilotName">Your name<input id="pilotName" name="name" required maxlength="120" autocomplete="name" placeholder="Full name"></label><label for="pilotEmail">Work email<input id="pilotEmail" name="email" required type="email" maxlength="255" autocomplete="email" placeholder="you@institution.org"></label><label class="form-full" for="pilotInstitution">Institution name<input id="pilotInstitution" name="institution_name" required maxlength="160" placeholder="School, college or tuition centre"></label><label for="pilotType">Institution type<select id="pilotType" name="institution_type" required><option value="">Choose one</option><option value="school">School</option><option value="college">College</option><option value="tuition">Tuition / coaching</option></select></label><label for="pilotRole">Your role<select id="pilotRole" name="role" required><option value="">Choose one</option><option value="owner">Owner / founder</option><option value="principal">Principal / school leader</option><option value="college_admin">College administrator</option><option value="teacher">Teacher</option><option value="other">Other</option></select></label><label class="form-full" for="pilotGoal">What would you most like to improve?<select id="pilotGoal" name="goal" required><option value="">Choose a priority</option><option value="attendance">Attendance and registers</option><option value="timetable">Timetables and class coordination</option><option value="homework">Homework and submissions</option><option value="notices">Notices and communication</option><option value="all_in_one">Several daily workflows</option><option value="other">Something else</option></select></label><label class="form-full" for="pilotMessage">Anything we should know? <span class="optional">Optional</span><textarea id="pilotMessage" name="message" maxlength="2000" rows="3" placeholder="Current process, most frustrating task, or what you want to test"></textarea></label>
+      <div class="honeypot" aria-hidden="true"><label for="companyWebsite">Leave this field blank<input id="companyWebsite" name="company_website" tabindex="-1" autocomplete="off"></label></div>
+      <label class="consent-check"><input type="checkbox" name="consent" value="yes" required><span>I agree to be contacted about this pilot request and understand this is an early-stage product.</span></label>
+      <button class="button button-primary button-wide" type="submit">Send pilot request <span aria-hidden="true">→</span></button><p class="form-privacy">Your details are used to respond to this request. Do not send sensitive student data.</p>
+    </form>
+  </section>
+</main>
+<footer class="landing-footer"><a class="landing-brand" href="{{ url_for('web.home') }}"><span class="brand-mark small">N<span>+</span></span><span>NextGen<span class="brand-light">Pathashala</span></span></a><p>Built to make everyday class coordination clearer.</p><div><a href="{{ url_for('web.login') }}">Sign in</a><a href="#pilot">Join the pilot</a></div></footer>
+{% endblock %}

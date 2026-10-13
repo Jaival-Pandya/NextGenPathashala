@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "NextGenPathashala",
+  "short_name": "NextGen",
+  "description": "Daily education management for schools, colleges and tuition institutes.",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f7fb",
+  "theme_color": "#302052",
+  "categories": ["education", "productivity"],
+  "icons": [
+    { "src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

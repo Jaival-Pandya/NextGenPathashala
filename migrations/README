@@ -1,0 +1,2 @@
+Alembic migration repository for NextGenPathashala.
+The baseline revision creates the initial schema from the SQLAlchemy metadata. Treat this revision as immutable after it has been applied to any shared database. For future schema changes, generate and review a new migration locally with `flask --app app db migrate -m "describe change"`, then apply it with `flask --app app db upgrade`.

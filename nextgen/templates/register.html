@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Create workspace · NextGenPathashala{% endblock %}
+{% block head_extra %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/lovable-ui.css') }}">
+{% endblock %}
+{% block content %}
+<main class="auth-layout register-layout">
+  <section class="auth-brand">
+    <div class="brand-mark">N<span>+</span></div><p class="eyebrow">START YOUR WORKSPACE</p>
+    <h1>Bring the school day<br>into focus.</h1>
+    <p class="brand-copy">Create one workspace for your institution, then add classes, teachers and students as you get started.</p>
+    <div class="feature-pills"><span>Multi-institution</span><span>Mobile-ready</span><span>Installable PWA</span></div>
+    <div class="auth-decoration decoration-one"></div><div class="auth-decoration decoration-two"></div>
+  </section>
+  <section class="auth-panel"><div class="auth-card">
+    <a class="back-link" href="{{ url_for('web.login') }}">← Back to sign in</a><p class="eyebrow">NEW WORKSPACE</p><h2>Create your institution</h2><p class="muted">The person creating a workspace becomes its administrator.</p>
+    <form method="post" class="stack-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="name">Your full name</label><input id="name" name="name" required maxlength="120" autocomplete="name" placeholder="e.g. Asha Sharma">
+      <label for="email">Administrator email</label><input id="email" name="email" type="email" required maxlength="255" autocomplete="email" placeholder="you@example.com">
+      <label for="institution_name">Institution name</label><input id="institution_name" name="institution_name" required maxlength="160" placeholder="e.g. Sunrise Coaching Classes">
+      <label for="institution_type">Institution type</label><select id="institution_type" name="institution_type"><option value="tuition">Tuition / Coaching</option><option value="school">School</option><option value="college">College</option></select>
+      <label for="password">Create password</label><input id="password" name="password" type="password" required minlength="10" autocomplete="new-password" aria-describedby="passwordHelp"><span id="passwordHelp" class="tiny muted">At least 10 characters. Never reuse an important password.</span>
+      <button class="button button-primary button-wide" type="submit">Create workspace <span aria-hidden="true">→</span></button>
+    </form>
+    <p class="tiny muted">This MVP creates a new institution workspace. Add teacher and student accounts from the dashboard.</p>
+  </div></section>
+</main>
+{% endblock %}

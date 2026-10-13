@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block title %}You're offline · NextGenPathashala{% endblock %}
+{% block content %}
+<main class="offline-page"><div class="brand-mark">N<span>+</span></div><p class="eyebrow">CONNECTION INTERRUPTED</p><h1>You're offline right now.</h1><p class="muted">The app shell is available, but live timetable, attendance and notice data need a connection. Reconnect and refresh to synchronize the latest information.</p><button class="button button-primary" onclick="window.location.reload()">Try again ↻</button><p class="tiny muted">For privacy, this page does not display cached personal records.</p></main>
+{% endblock %}
