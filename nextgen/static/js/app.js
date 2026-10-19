@@ -4,6 +4,96 @@
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
   const csrfToken = $('meta[name="csrf-token"]')?.content || '';
+  const rememberedAccountsKey = 'nextgenpathashala.rememberedAccounts.v1';
+  const pendingRememberedAccountKey = 'nextgenpathashala.pendingRememberedAccount.v1';
+
+    function getRememberedAccounts() {
+      try {
+        const accounts = JSON.parse(localStorage.getItem(rememberedAccountsKey) || '[]');
+        return Array.isArray(accounts) ? accounts.filter(account => account && typeof account.email === 'string') : [];
+      } catch (_) { return []; }
+    }
+
+    function renderRememberedAccounts() {
+      const section = $('#savedAccounts');
+      const list = $('#savedAccountList');
+      if (!section || !list) return;
+      const accounts = getRememberedAccounts();
+      section.hidden = accounts.length === 0;
+      list.replaceChildren();
+      accounts.forEach(account => {
+        const row = document.createElement('div');
+        row.className = 'saved-account-row';
+        const choose = document.createElement('button');
+        choose.type = 'button';
+        choose.className = 'saved-account-choice';
+        choose.dataset.accountEmail = account.email;
+        choose.dataset.accountInstitution = account.institution || '';
+        const name = document.createElement('strong');
+        name.textContent = account.name || account.email;
+        const details = document.createElement('small');
+        details.textContent = [account.email, account.institution].filter(Boolean).join(' · ');
+        choose.append(name, details);
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'forget-account';
+        remove.dataset.forgetEmail = account.email;
+        remove.setAttribute('aria-label', `Forget ${account.email} on this device`);
+        remove.title = 'Forget this account on this device';
+        remove.textContent = '×';
+        row.append(choose, remove);
+        list.append(row);
+      });
+    }
+
+    function bindLoginAccounts() {
+      const form = $('#loginForm');
+      if (!form) return;
+      try { sessionStorage.removeItem(pendingRememberedAccountKey); } catch (_) { /* Storage can be disabled. */ }
+      renderRememberedAccounts();
+      form.addEventListener('submit', () => {
+        try {
+          if ($('#rememberAccount')?.checked) {
+            sessionStorage.setItem(pendingRememberedAccountKey, $('#email').value.trim().toLowerCase());
+          } else {
+            sessionStorage.removeItem(pendingRememberedAccountKey);
+          }
+        } catch (_) { /* Sign-in still works when browser storage is disabled. */ }
+      });
+      $('#savedAccountList')?.addEventListener('click', event => {
+        const remove = event.target.closest('[data-forget-email]');
+        if (remove) {
+          const accounts = getRememberedAccounts().filter(account => account.email !== remove.dataset.forgetEmail);
+          try { localStorage.setItem(rememberedAccountsKey, JSON.stringify(accounts)); } catch (_) { /* Ignore storage errors. */ }
+          renderRememberedAccounts();
+          return;
+        }
+        const choice = event.target.closest('[data-account-email]');
+        if (!choice) return;
+        $('#email').value = choice.dataset.accountEmail;
+        $('#institution').value = choice.dataset.accountInstitution;
+        $('#rememberAccount').checked = true;
+        $('#password').focus();
+      });
+    }
+
+    function rememberSignedInAccount() {
+      let pendingEmail = '';
+      try {
+        pendingEmail = sessionStorage.getItem(pendingRememberedAccountKey) || '';
+        sessionStorage.removeItem(pendingRememberedAccountKey);
+      } catch (_) { return; }
+      if (!pendingEmail || pendingEmail !== state.user?.email?.toLowerCase()) return;
+      const account = {
+        name: state.user.name,
+        email: state.user.email,
+        institution: state.institution?.name || '',
+        role: state.user.role,
+      };
+      const accounts = getRememberedAccounts().filter(item => item.email !== account.email);
+      accounts.unshift(account);
+      try { localStorage.setItem(rememberedAccountsKey, JSON.stringify(accounts.slice(0, 8))); } catch (_) { /* Sign-in still works when storage is full or disabled. */ }
+    }
   const state = { user: null, institution: null, classes: [], users: [], students: [], sessions: [], assignments: [], notices: [], attendanceSession: null, deferredInstall: null };
   // Import state stays in memory only; never persist temporary passwords locally.
   let pendingStudentImportRows = [];
@@ -60,7 +150,7 @@
   }
 
   function sectionName(id) {
-    return ({ overview: 'Overview', timetable: 'Timetable', attendance: 'Attendance', homework: 'Homework', notices: 'Notices', feedback: 'Feedback', study: 'Study Lab', manage: 'Classes & people' })[id] || 'Overview';
+    return ({ overview: 'Overview', timetable: 'Timetable', attendance: 'Attendance', homework: 'Homework', notices: 'Notices', feedback: 'Feedback', study: 'Study Lab', 'study-buddy': 'Study Buddy', account: 'Account', manage: 'Classes & people' })[id] || 'Overview';
   }
   function goToSection(id) {
     if (!$('#section-' + id)) return;
@@ -74,6 +164,7 @@
     if (id === 'attendance' && state.user?.role !== 'student') loadSessionsForAttendance().catch(showError);
     if (id === 'homework') loadAssignments().catch(showError);
     if (id === 'notices') loadNotices().catch(showError);
+    if (id === 'study' || id === 'study-buddy') loadStudyMaterials().catch(showError);
     if (id === 'manage' && state.user?.role === 'admin') loadManagement().catch(showError);
     if (id === 'feedback' && state.user?.role === 'admin') loadFeedback().catch(showError);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -92,6 +183,12 @@
     $('#profileRole').textContent = role || '';
     $('#userAvatar').textContent = asInitials(state.user?.name);
     $('#topAvatar').textContent = asInitials(state.user?.name);
+    $('#profileEmail').textContent = state.user?.email || '—';
+    $('#profileUserId').textContent = state.user?.id ?? '—';
+    $('#profileInstitution').textContent = state.institution?.name || '—';
+    $('#profileStudentId').textContent = state.user?.student_id ?? '—';
+    $('#profileStudentCode').textContent = state.user?.student_code || '—';
+    $$('.student-account-fact').forEach(item => { item.hidden = role !== 'student'; });
     const date = new Date();
     $('#greeting').textContent = `Good ${date.getHours() < 12 ? 'morning' : date.getHours() < 17 ? 'afternoon' : 'evening'}, ${firstName(state.user?.name)}!`;
     $('#todayLabel').textContent = date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase();
@@ -545,12 +642,34 @@
     const history=studyHistory().slice(0,5);
     el.innerHTML=history.length?history.map(x=>`<div class="list-item"><div class="list-content"><strong>${escapeHtml(x.label)}</strong><p>${escapeHtml(x.score)}/${escapeHtml(x.total)} · ${escapeHtml(x.date)}</p></div></div>`).join(''):'<p class="muted tiny">No scores yet. Complete a practice set or mock test to start tracking on this device.</p>';
   }
-  function beginStudyQuiz(kind) {
-    const topic=kind==='practice'?($('#practiceTopic')?.value||'all'):'all';
-    let pool=STUDY_QUESTIONS.filter(q=>topic==='all'||q.topic===topic);
+  async function beginStudyQuiz(kind) {
+    if (kind === 'practice') {
+      const materialIds = $$('#practiceNoteOptions input[type="checkbox"]:checked').map(input => input.value);
+      const button = $('#startPractice');
+      const target = $('#practiceArea');
+      if (!materialIds.length || !button || !target) return;
+      button.disabled = true;
+      button.textContent = 'Generating…';
+      target.textContent = 'Generating questions from the selected notes…';
+      try {
+        const result = await api('/api/v1/study-materials/practice-quiz', {
+          method: 'POST', body: JSON.stringify({ material_ids: materialIds })
+        });
+        activeStudyQuiz = { kind, label: result.label, questions: result.questions, answers: {} };
+        renderStudyQuiz();
+        $('#practiceNotesPicker').open = false;
+      } catch (error) {
+        target.textContent = error.message;
+      } finally {
+        button.disabled = !$$('#practiceNoteOptions input[type="checkbox"]:checked').length;
+        button.textContent = 'Generate five questions';
+      }
+      return;
+    }
+    let pool=[...STUDY_QUESTIONS];
     pool=pool.sort(()=>Math.random()-.5);
-    const count=kind==='mock'?10:Math.min(5,pool.length);
-    activeStudyQuiz={kind,label:kind==='mock'?'Mock test':`Practice · ${topic==='all'?'Mixed revision':topic.toUpperCase()}`,questions:pool.slice(0,count),answers:{}};
+    const count=10;
+    activeStudyQuiz={kind,label:'Mock test',questions:pool.slice(0,count),answers:{}};
     renderStudyQuiz();
   }
   function renderStudyQuiz() {
@@ -583,11 +702,36 @@
     const p=document.createElement('p');p.textContent=text;
     bubble.append(strong,p);log.append(bubble);log.scrollTop=log.scrollHeight;
   }
+  function updatePracticeNoteSelection() {
+    const selectedCount = $$('#practiceNoteOptions input[type="checkbox"]:checked').length;
+    const summary = $('#practiceNotesSummary');
+    const button = $('#startPractice');
+    if (summary) summary.textContent = selectedCount ? `${selectedCount} note${selectedCount === 1 ? '' : 's'} selected` : 'Choose course notes';
+    if (button) button.disabled = selectedCount === 0;
+  }
+  function renderPracticeNoteOptions(materials) {
+    const options = $('#practiceNoteOptions');
+    if (!options) return;
+    options.replaceChildren();
+    if (!materials.length) {
+      const empty = document.createElement('p'); empty.className = 'muted tiny'; empty.textContent = 'Upload notes in Study Buddy to practise from them.'; options.append(empty);
+      updatePracticeNoteSelection();
+      return;
+    }
+    materials.forEach(material => {
+      const label = document.createElement('label'); label.className = 'practice-note-option';
+      const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.value = material.id;
+      const name = document.createElement('span'); name.textContent = material.name;
+      label.append(checkbox, name); options.append(label);
+    });
+    updatePracticeNoteSelection();
+  }
   async function loadStudyMaterials() {
     const list = $('#studyMaterialList'); if (!list) return;
     try {
       const result = await api('/api/v1/study-materials');
       list.replaceChildren();
+      renderPracticeNoteOptions(result.materials || []);
       if (!result.materials?.length) {
         const empty = document.createElement('p'); empty.className = 'muted tiny'; empty.textContent = 'No course notes uploaded yet.'; list.append(empty); return;
       }
@@ -598,7 +742,12 @@
         remove.addEventListener('click', async () => { try { await api(`/api/v1/study-materials/${encodeURIComponent(material.id)}`, {method:'DELETE'}); toast('Course notes removed.', 'success'); await loadStudyMaterials(); } catch (err) { showError(err); } });
         row.append(label, remove); list.append(row);
       });
-    } catch (err) { list.textContent = err.message; }
+    } catch (err) {
+      list.textContent = err.message;
+      const options = $('#practiceNoteOptions');
+      if (options) options.textContent = err.message;
+      updatePracticeNoteSelection();
+    }
   }
 
   let assessmentDrafts = [];
@@ -688,6 +837,7 @@
   }
 
   function bindStudyLab() {
+    $('#practiceNoteOptions')?.addEventListener('change', updatePracticeNoteSelection);
     $('#studyMaterialForm')?.addEventListener('submit', async e => {
       e.preventDefault(); const form = e.currentTarget; const file = $('#studyMaterialFile')?.files?.[0]; const button = $('button[type=submit]', form);
       if (!file || button.disabled) return;
@@ -696,7 +846,6 @@
       catch (err) { showError(err); }
       finally { button.disabled = false; button.textContent = 'Upload notes'; }
     });
-    loadStudyMaterials();
     renderAssessmentDrafts();
     $('#addAssessmentQuestion')?.addEventListener('click', addAssessmentDraft);
     $('#assessmentDraftList')?.addEventListener('click', event => {
@@ -906,6 +1055,16 @@
       $('#feedbackForm').reset();
       if (state.user?.role === 'admin') await loadFeedback();
     });
+    bindForm('changePasswordForm', async () => {
+      const newPassword = $('#newPassword').value;
+      if (newPassword !== $('#confirmPassword').value) throw new Error('The new passwords do not match.');
+      await api('/api/v1/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ current_password: $('#currentPassword').value, new_password: newPassword })
+      });
+      $('#changePasswordForm').reset();
+      toast('Password changed successfully.', 'success');
+    });
     window.addEventListener('online', () => { if ($('#connectionStatus')) { $('#connectionStatus').classList.remove('offline'); $('#connectionStatus').lastChild.textContent = ' Connected'; } });
     window.addEventListener('offline', () => { if ($('#connectionStatus')) { $('#connectionStatus').classList.add('offline'); $('#connectionStatus').lastChild.textContent = ' Offline'; } });
     window.addEventListener('beforeinstallprompt', event => {
@@ -925,6 +1084,7 @@
       const meData = await api('/api/v1/auth/me');
       state.user = meData.user;
       state.institution = meData.institution;
+      rememberSignedInAccount();
       applyRoleVisibility();
       renderStudyHistory();
       await loadClassesAndUsers();
@@ -950,6 +1110,7 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     if ($('#appShell')) { bindInteractions(); bootDashboard(); }
+    else bindLoginAccounts();
     registerServiceWorker();
   });
 })();

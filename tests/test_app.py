@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import json
 
 import pytest
 
@@ -6,7 +7,7 @@ from nextgen import create_app
 from extensions import db
 from config import normalize_database_url
 from nextgen.api import local_day_bounds
-from nextgen.models import Institution, PilotInquiry, UserFeedback
+from nextgen.models import AuditLog, Institution, PilotInquiry, UserFeedback
 
 
 @pytest.fixture()
@@ -59,7 +60,51 @@ def test_health_and_registration(client):
     me = client.get("/api/v1/auth/me")
     assert me.status_code == 200
     assert me.json["user"]["role"] == "admin"
+    assert me.json["user"]["id"] is not None
     assert me.json["institution"]["name"] == "Example Academy"
+
+
+def test_student_can_change_password_and_old_password_stops_working(client):
+    register(client)
+    created = api_post(client, "/api/v1/users", {
+        "name": "Sam Student", "email": "student@example.com", "role": "student",
+        "password": "Student-password-123",
+    })
+    assert created.status_code == 201
+    client.post("/logout", follow_redirects=True)
+    client.post("/login", data={"email": "student@example.com", "password": "Student-password-123"})
+
+    wrong_current = api_post(client, "/api/v1/auth/change-password", {
+        "current_password": "incorrect-password", "new_password": "Student-password-456",
+    })
+    assert wrong_current.status_code == 400
+    weak_new = api_post(client, "/api/v1/auth/change-password", {
+        "current_password": "Student-password-123", "new_password": "short",
+    })
+    assert weak_new.status_code == 400
+
+    changed = api_post(client, "/api/v1/auth/change-password", {
+        "current_password": "Student-password-123", "new_password": "Student-password-456",
+    })
+    assert changed.status_code == 200
+    assert changed.json["message"] == "Password changed successfully."
+
+    client.post("/logout", follow_redirects=True)
+    client.post("/login", data={"email": "student@example.com", "password": "Student-password-123"})
+    assert client.get("/api/v1/auth/me").status_code == 401
+    client.post("/login", data={"email": "student@example.com", "password": "Student-password-456"})
+    student_me = client.get("/api/v1/auth/me").json["user"]
+    assert student_me["role"] == "student"
+    assert student_me["student_id"] is not None
+    assert student_me["student_code"].startswith("STU-")
+
+
+def test_switch_account_logout_returns_to_login(client):
+    register(client)
+    response = client.post("/logout", data={"action": "switch"}, follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/login?switch=1")
+    assert client.get("/api/v1/auth/me").status_code == 401
 
 
 
@@ -274,6 +319,9 @@ def test_timezone_fallback_and_database_url_normalization():
 
 
 def test_pilot_inquiry_inbox_requires_configured_owner(client, app):
+    assert client.get("/owner/pilot-inquiries").status_code == 404
+    assert client.post("/owner/pilot-inquiries/1/status", data={"status": "closed"}).status_code == 404
+
     register(client)
     response = client.get("/owner/pilot-inquiries")
     assert response.status_code == 404
@@ -282,6 +330,85 @@ def test_pilot_inquiry_inbox_requires_configured_owner(client, app):
     response = client.get("/owner/pilot-inquiries")
     assert response.status_code == 200
     assert b"Pilot requests" in response.data
+
+
+def test_owner_analytics_is_private_and_shows_platform_metrics(client, app):
+    assert client.get("/owner/admin").status_code == 404
+    register(client)
+    app.config["PILOT_ADMIN_EMAIL"] = "admin@example.com"
+    with app.app_context():
+        institution = Institution.query.filter_by(name="Example Academy").first()
+        actor = institution.users[0]
+        db.session.add(AuditLog(
+            institution_id=institution.id, actor_id=actor.id,
+            action="feedback.submitted", entity_type="user_feedback", entity_id="1",
+        ))
+        db.session.add(UserFeedback(
+            institution_id=institution.id, user_id=actor.id, category="idea",
+            message="Please add a way to export attendance.", page="attendance",
+        ))
+        db.session.commit()
+
+    response = client.get("/owner/admin")
+    assert response.status_code == 200
+    assert b"Active users today" in response.data
+    assert b"Feedback by AI category" in response.data
+    assert b"Please add a way to export attendance." in response.data
+
+
+def test_owner_can_opt_in_to_ai_feedback_categories(client, app, monkeypatch):
+    register(client)
+    app.config.update({
+        "PILOT_ADMIN_EMAIL": "admin@example.com",
+        "STUDY_AI_PROVIDER": "ollama",
+        "STUDY_AI_API_KEY": "should-not-be-sent",
+        "STUDY_AI_BASE_URL": "http://localhost:11434/v1",
+    })
+    with app.app_context():
+        institution = Institution.query.filter_by(name="Example Academy").first()
+        actor = institution.users[0]
+        item = UserFeedback(
+            institution_id=institution.id, user_id=actor.id, category="idea",
+            message="Please add a way to export attendance.", page="attendance",
+        )
+        db.session.add(item)
+        db.session.commit()
+        item_id = item.id
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def read(self):
+            response = {"choices": [{"message": {"content": json.dumps([
+                {"id": item_id, "category": "feature_request"}
+            ])}}]}
+            return json.dumps(response).encode("utf-8")
+
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["authorization"] = request.get_header("Authorization")
+        return FakeResponse()
+
+    monkeypatch.setattr("nextgen.web.urlopen", fake_urlopen)
+    missing_confirmation = client.post("/owner/admin/categorize-feedback", data={})
+    assert missing_confirmation.status_code == 302
+    with app.app_context():
+        assert db.session.get(UserFeedback, item_id).ai_category is None
+
+    categorized = client.post(
+        "/owner/admin/categorize-feedback",
+        data={"confirm_ai_processing": "yes"}, follow_redirects=True,
+    )
+    assert categorized.status_code == 200
+    assert captured["authorization"] is None
+    assert b"AI categorized 1 feedback item" in categorized.data
+    with app.app_context():
+        assert db.session.get(UserFeedback, item_id).ai_category == "feature_request"
 
 
 def test_reactivating_cancelled_session_checks_conflicts(client):
@@ -417,7 +544,8 @@ def test_study_material_validation_and_storage_limits(client, app, tmp_path):
     assert over_limit.status_code == 409
 
 
-def test_study_chat_requires_question_and_configured_provider(client):
+def test_study_chat_requires_question_and_configured_provider(client, app):
+    app.config.update(STUDY_AI_PROVIDER="openai", STUDY_AI_API_KEY="")
     register(client)
     blank = api_post(client, "/api/v1/study-chat", {"question": "   "})
     assert blank.status_code == 400
@@ -520,13 +648,86 @@ def test_assessment_rejects_bad_answer_payload(client):
 
 
 
+def test_practice_quiz_uses_only_selected_course_notes(client, app, tmp_path, monkeypatch):
+    import io
+    import json
+
+    app.instance_path = str(tmp_path)
+    app.config.update(STUDY_AI_PROVIDER="openai", STUDY_AI_API_KEY="test-only-key")
+    register(client)
+    selected = client.post(
+        "/api/v1/study-materials",
+        data={"file": (io.BytesIO(b"Photosynthesis converts light into chemical energy."), "biology.txt")},
+        content_type="multipart/form-data",
+    )
+    unselected = client.post(
+        "/api/v1/study-materials",
+        data={"file": (io.BytesIO(b"Fractions represent parts of a whole."), "maths.txt")},
+        content_type="multipart/form-data",
+    )
+    selected_too = client.post(
+        "/api/v1/study-materials",
+        data={"file": (io.BytesIO(b"Chlorophyll captures energy from sunlight."), "plant-cells.txt")},
+        content_type="multipart/form-data",
+    )
+    selected_id = selected.json["material"]["id"]
+    unselected_id = unselected.json["material"]["id"]
+    selected_too_id = selected_too.json["material"]["id"]
+    questions = [
+        {"question": f"Question {index}?", "options": ["A", "B", "C", "D"], "answer": 0, "explanation": "From the notes."}
+        for index in range(5)
+    ]
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self): return self
+        def __exit__(self, *_args): return False
+        def read(self):
+            content = json.dumps({"questions": questions})
+            return json.dumps({"choices": [{"message": {"content": content}}]}).encode()
+
+    def fake_urlopen(request, timeout):
+        captured["authorization"] = request.get_header("Authorization")
+        captured["payload"] = json.loads(request.data.decode())
+        return FakeResponse()
+
+    monkeypatch.setattr("nextgen.api.urlopen", fake_urlopen)
+    unavailable = api_post(client, "/api/v1/study-materials/practice-quiz", {"material_ids": ["0" * 16]})
+    assert unavailable.status_code == 404
+
+    response = api_post(client, "/api/v1/study-materials/practice-quiz", {"material_ids": [selected_id, selected_too_id]})
+    assert response.status_code == 200, response.json
+    assert len(response.json["questions"]) == 5
+    assert response.json["questions"][0]["q"] == "Question 0?"
+    assert captured["authorization"] == "Bearer test-only-key"
+    note_prompt = captured["payload"]["messages"][1]["content"]
+    assert "Photosynthesis converts light" in note_prompt
+    assert "Chlorophyll captures energy" in note_prompt
+    assert "Fractions represent" not in note_prompt
+    assert unselected_id not in note_prompt
+
+    app.config.update(
+        STUDY_AI_PROVIDER="ollama",
+        STUDY_AI_BASE_URL="http://localhost:11434/v1",
+        STUDY_AI_MODEL="llama3.2:3b",
+    )
+    ollama_response = api_post(client, "/api/v1/study-materials/practice-quiz", {"material_ids": [selected_id]})
+    assert ollama_response.status_code == 200, ollama_response.json
+    assert captured["authorization"] is None
+
+
 def test_study_chat_uses_server_key_and_note_context_in_untrusted_user_message(client, app, tmp_path, monkeypatch):
     import io
     import json
     from io import BytesIO
 
     app.instance_path = str(tmp_path)
-    app.config["STUDY_AI_API_KEY"] = "test-only-key"
+    app.config.update(
+        STUDY_AI_PROVIDER="openai",
+        STUDY_AI_API_KEY="test-only-key",
+        STUDY_AI_BASE_URL="https://api.openai.com/v1",
+        STUDY_WEB_SEARCH_API_KEY="test-search-key",
+    )
     register(client)
     uploaded = client.post(
         "/api/v1/study-materials",
@@ -535,6 +736,7 @@ def test_study_chat_uses_server_key_and_note_context_in_untrusted_user_message(c
     )
     assert uploaded.status_code == 201
     captured = {}
+    requests = []
 
     class FakeResponse:
         def __enter__(self): return self
@@ -543,6 +745,7 @@ def test_study_chat_uses_server_key_and_note_context_in_untrusted_user_message(c
             return json.dumps({"choices": [{"message": {"content": "TF-IDF weights terms by relevance."}}]}).encode()
 
     def fake_urlopen(request, timeout):
+        requests.append(request)
         captured["url"] = request.full_url
         captured["timeout"] = timeout
         captured["authorization"] = request.get_header("Authorization")
@@ -557,3 +760,85 @@ def test_study_chat_uses_server_key_and_note_context_in_untrusted_user_message(c
     assert "UNTRUSTED COURSE-NOTE EXCERPTS" in captured["payload"]["messages"][1]["content"]
     assert "TF-IDF" in captured["payload"]["messages"][1]["content"]
     assert "STUDENT COURSE NOTES" not in captured["payload"]["messages"][0]["content"]
+    assert len(requests) == 1
+    assert requests[0].get_method() == "POST"
+
+
+def test_study_chat_searches_web_only_when_note_retrieval_has_no_match(client, app, monkeypatch):
+    import json
+
+    app.config.update(
+        STUDY_AI_PROVIDER="openai",
+        STUDY_AI_API_KEY="test-only-key",
+        STUDY_AI_BASE_URL="https://api.openai.com/v1",
+        STUDY_WEB_SEARCH_API_KEY="test-search-key",
+    )
+    register(client)
+    requests = []
+
+    class FakeResponse:
+        def __init__(self, body): self.body = body
+        def __enter__(self): return self
+        def __exit__(self, *_args): return False
+        def read(self): return json.dumps(self.body).encode()
+
+    def fake_urlopen(request, timeout):
+        requests.append(request)
+        if request.get_method() == "GET":
+            assert request.get_header("X-subscription-token") == "test-search-key"
+            return FakeResponse({"web": {"results": [{
+                "title": "Newton's laws",
+                "url": "https://example.test/newton",
+                "description": "Newton's second law states that force equals mass times acceleration.",
+            }]}})
+        return FakeResponse({"choices": [{"message": {"content": "Force equals mass times acceleration."}}]})
+
+    monkeypatch.setattr("nextgen.api.urlopen", fake_urlopen)
+    answer = api_post(client, "/api/v1/study-chat", {"question": "Explain Newton's second law"})
+
+    assert answer.status_code == 200, answer.json
+    assert len(requests) == 2
+    prompt = json.loads(requests[1].data.decode())["messages"][1]["content"]
+    assert "UNTRUSTED WEB SEARCH RESULTS" in prompt
+    assert "https://example.test/newton" in prompt
+
+
+def test_study_chat_omits_api_key_for_ollama_and_includes_uploaded_notes(client, app, tmp_path, monkeypatch):
+    import io
+    import json
+
+    app.instance_path = str(tmp_path)
+    app.config.update(
+        STUDY_AI_PROVIDER="ollama",
+        STUDY_AI_API_KEY="should-not-be-sent",
+        STUDY_AI_BASE_URL="http://localhost:11434/v1",
+        STUDY_AI_MODEL="llama3.2:3b",
+    )
+    register(client)
+    uploaded = client.post(
+        "/api/v1/study-materials",
+        data={"file": (io.BytesIO(b"Photosynthesis converts light energy into chemical energy in plants."), "biology.txt")},
+        content_type="multipart/form-data",
+    )
+    assert uploaded.status_code == 201
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self): return self
+        def __exit__(self, *_args): return False
+        def read(self):
+            return json.dumps({"choices": [{"message": {"content": "Plants store light energy as chemical energy."}}]}).encode()
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["authorization"] = request.get_header("Authorization")
+        captured["payload"] = json.loads(request.data.decode())
+        return FakeResponse()
+
+    monkeypatch.setattr("nextgen.api.urlopen", fake_urlopen)
+    answer = api_post(client, "/api/v1/study-chat", {"question": "Explain photosynthesis"})
+    assert answer.status_code == 200, answer.json
+    assert answer.json["model"] == "llama3.2:3b"
+    assert captured["url"] == "http://localhost:11434/v1/chat/completions"
+    assert captured["authorization"] is None
+    assert "Photosynthesis converts light energy" in captured["payload"]["messages"][1]["content"]

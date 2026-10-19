@@ -1,3 +1,34 @@
+.account-menu { border-top:1px solid rgba(255,255,255,.12); margin-top:12px; }
+.shell.app-shell > .sidebar { overflow-y:auto; overscroll-behavior:contain; }
+.account-menu summary { list-style:none; cursor:pointer; }
+.account-menu summary::-webkit-details-marker { display:none; }
+.account-menu .profile-row { border:0; padding:12px 4px 2px; }
+.account-trigger-label { color:#cbd5e1; font-size:9px; font-weight:700; }
+.account-menu-caret { margin-left:auto; color:#aebbd0; transition:transform .15s ease; }
+.account-menu[open] .account-menu-caret { transform:rotate(180deg); }
+.account-details { max-height:36vh; overflow:auto; padding:8px 0 2px; }
+.account-facts { margin:0 0 10px; }
+.account-facts > div { padding:5px 2px; }
+.account-facts dt { color:#9aa8bd; font-size:9px; font-weight:700; text-transform:uppercase; }
+.account-facts dd { margin:1px 0 0; color:#e5edf8; font-size:11px; overflow-wrap:anywhere; }
+.account-menu-action { width:100%; padding:8px 10px; border:1px solid #394963; border-radius:8px; background:#18243a; color:#e5edf8; text-align:left; font-size:11px; font-weight:700; }
+.account-menu-action:hover { background:#22304a; border-color:#818cf8; }
+.account-menu-action.sign-out { margin-top:6px; color:#fecaca; }
+.remember-account-option { display:flex; align-items:center; gap:8px; margin-top:0 !important; font-weight:500 !important; }
+.remember-account-option input { width:16px; min-height:16px; margin:0; accent-color:#6d5dfc; }
+.saved-accounts { margin-top:18px; }
+.saved-accounts h3 { margin:0 0 8px; font-size:12px; }
+.saved-account-list { display:grid; gap:7px; }
+.saved-account-row { display:flex; align-items:stretch; gap:6px; }
+.saved-account-choice { flex:1; min-width:0; padding:9px 10px; border:1px solid var(--border); border-radius:9px; background:var(--surface); color:var(--heading); text-align:left; }
+.saved-account-choice strong,.saved-account-choice small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.saved-account-choice strong { font-size:11px; }
+.saved-account-choice small { margin-top:2px; color:var(--muted); font-size:10px; }
+.forget-account { width:34px; border:1px solid var(--border); border-radius:9px; background:var(--surface); color:var(--muted); font-size:18px; }
+.forget-account:hover { color:#b42336; border-color:#b42336; }
+html.dark-mode .saved-account-choice,html.dark-mode .forget-account { background:#131d2f; border-color:#394963; color:#e5edf8; }
+html.dark-mode .saved-account-choice small { color:#b6c3d4; }
+html.dark-mode .forget-account:hover { color:#fecaca; border-color:#fb7185; }
 :root{
   --bg:#f4f7fb; --sidebar:rgba(255,255,255,.78); --card:rgba(255,255,255,.72); --card-hover:rgba(239,244,250,.92);
   --primary:#6d5dfc; --primary-ink:#ffffff;
@@ -1193,8 +1224,20 @@ html.dark-mode .quick-actions button:hover { background:rgba(124,131,255,.1); }
 html.dark-mode .empty-state { border-color:var(--border-strong); color:#9aa8bd; }
 html.dark-mode .app-footer { color:#9aa8bd; }
 html.dark-mode .import-preview, html.dark-mode .import-result { background:rgba(255,255,255,.035); border-color:var(--border); }
+html.dark-mode #quickStartPanel { background:#131d2f !important; border-color:#394963 !important; }
+html.dark-mode #quickStartPanel .panel-heading .eyebrow { color:#b9adff !important; }
+html.dark-mode #quickStartPanel .panel-heading h2 { color:#f8fafc !important; }
+html.dark-mode #quickStartPanel .panel-heading p { color:#b6c3d4 !important; }
+html.dark-mode #quickStartPanel .soft-tag { background:#312d59 !important; border:1px solid #514b83; color:#e4e1ff !important; }
+html.dark-mode #quickStartPanel .quick-start-steps button { background:#18243a !important; border-color:#394963 !important; color:#e5edf8 !important; }
+html.dark-mode #quickStartPanel .quick-start-steps button:hover { background:#22304a !important; border-color:#818cf8 !important; }
+html.dark-mode #quickStartPanel .quick-start-steps button > span { background:#37315f !important; color:#e0dcff !important; }
+html.dark-mode #quickStartPanel .quick-start-steps button strong { color:#f8fafc !important; }
+html.dark-mode #quickStartPanel .quick-start-steps button small { color:#c0cad8 !important; }
+html.dark-mode #quickStartPanel .pilot-safety-note { background:#302a1c !important; border:1px solid #6e5b2b; color:#f4dfa8 !important; }
 
 @media (max-width: 900px) {
+  .shell.app-shell > .sidebar { padding-bottom:calc(82px + env(safe-area-inset-bottom)); }
   .shell.app-shell { display:block; }
   .main.main-panel { margin-left:0; width:100% !important; }
   .content-wrap.page-content { padding:18px 14px 100px; width:100%; }

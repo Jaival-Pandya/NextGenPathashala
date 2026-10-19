@@ -1,5 +1,5 @@
 /* Privacy-first PWA shell cache. Never cache authenticated API responses or HTML dashboards. */
-const CACHE_NAME = 'nextgenpathashala-shell-v6-classroom-assessments';
+const CACHE_NAME = 'nextgenpathashala-shell-v9-visible-account-control';
 const SHELL_ASSETS = [
   '/static/css/style.css',
   '/static/css/landing.css',

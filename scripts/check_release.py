@@ -81,13 +81,14 @@ def main() -> int:
     dashboard = (ROOT / "nextgen" / "templates" / "dashboard.html").read_text(encoding="utf-8")
     app_js = (ROOT / "nextgen" / "static" / "js" / "app.js").read_text(encoding="utf-8")
     check('id="section-study"' in dashboard and 'data-section="study"' in dashboard, "Study Lab navigation and page section exist")
+    check('id="section-study-buddy"' in dashboard and 'data-section="study-buddy"' in dashboard, "Study Buddy navigation and separate page exist")
     check("STUDY_QUESTIONS" in app_js and "bindStudyLab" in app_js and "tutorReply" in app_js, "Practice MCQ, mock test and study helper handlers exist")
     check('id="assessmentForm"' in dashboard and 'id="assessmentAttemptForm"' in app_js and 'data-assessment-results' in app_js, "Teacher-created assessment and student attempt UI wiring exists")
     check("retrieve_relevant_chunks" in (ROOT / "study_content.py").read_text(encoding="utf-8"), "Course-note retrieval helper exists")
     api_source = (ROOT / "nextgen" / "api.py").read_text(encoding="utf-8")
     model_source = (ROOT / "nextgen" / "models.py").read_text(encoding="utf-8")
     check('"/assessments"' in api_source and '"/assessments/<int:assessment_id>/attempts"' in api_source and "class AssessmentAttempt" in model_source, "Assessment API and data models exist")
-    check("nextgenpathashala-shell-v6-classroom-assessments" in service_worker, "Service-worker cache version bumped for classroom assessment assets")
+    check("nextgenpathashala-shell-v9-visible-account-control" in service_worker, "Service-worker cache version bumped for visible account control")
 
     # Check linear Alembic revision links without importing the Flask app.
     try:

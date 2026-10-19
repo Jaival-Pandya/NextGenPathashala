@@ -21,15 +21,17 @@
       <div class="mobile-brand"><div class="brand-mark small">N<span>+</span></div><strong>NextGenPathashala</strong></div>
       <p class="eyebrow">WELCOME BACK</p><h2>Sign in to your workspace</h2>
       <p class="muted">Use the account provided by your institution.</p>
-      <form method="post" class="stack-form">
+      <form method="post" class="stack-form" id="loginForm">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="email">Email address</label><input id="email" name="email" type="email" autocomplete="username" required maxlength="255" placeholder="you@example.com">
         <label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required>
         <label for="institution">Institution name <span class="optional">(if needed)</span></label><input id="institution" name="institution" type="text" placeholder="Your school or tuition centre">
+        <label class="remember-account-option"><input id="rememberAccount" type="checkbox"> Remember this account on this device</label>
         <button class="button button-primary button-wide" type="submit">Sign in <span aria-hidden="true">→</span></button>
       </form>
+      <section id="savedAccounts" class="saved-accounts" aria-label="Accounts remembered on this device" hidden><h3>Accounts on this device</h3><div id="savedAccountList" class="saved-account-list"></div></section>
       <p class="auth-foot">Setting up a new institution? <a href="{{ url_for('web.register') }}">Create a workspace</a></p>
-      <p class="tiny muted">Use a unique password. Your institution's data is kept separate from other workspaces.</p>
+      <p class="tiny muted">Remembered accounts store names and email addresses only. Passwords are never saved.</p>
     </div>
   </section>
 </main>

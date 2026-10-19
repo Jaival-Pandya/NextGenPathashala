@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Owner analytics · NextGenPathashala{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/owner-admin.css') }}">{% endblock %}
+{% block content %}
+<main class="owner-admin container">
+  <header class="owner-admin-header">
+    <div><p class="eyebrow">PRIVATE PLATFORM VIEW</p><h1>Owner analytics</h1><p class="muted">Platform-wide activity and tester feedback.</p></div>
+    <nav aria-label="Owner navigation"><a class="button button-soft" href="{{ url_for('web.dashboard') }}">Workspace</a><a class="button button-soft" href="{{ url_for('web.pilot_inquiries') }}">Pilot requests</a></nav>
+  </header>
+
+  <section class="owner-metrics" aria-label="Platform summary">
+    <article class="owner-metric"><span>Active users today</span><strong>{{ active_today }}</strong><small>Distinct accounts with a recorded action</small></article>
+    <article class="owner-metric"><span>Active users, 7 days</span><strong>{{ active_week }}</strong><small>Distinct accounts with a recorded action</small></article>
+    <article class="owner-metric"><span>Recorded actions, 14 days</span><strong>{{ total_events }}</strong><small>Across all institutions</small></article>
+    <article class="owner-metric"><span>Active institutions</span><strong>{{ institutions_count }}</strong><small>Currently enabled workspaces</small></article>
+  </section>
+
+  <section class="owner-section" aria-labelledby="usage-title">
+    <div class="owner-section-heading"><div><p class="eyebrow">LAST 14 DAYS</p><h2 id="usage-title">Daily active users</h2></div><div class="chart-legend"><span><i class="legend-users"></i>Active users</span><span><i class="legend-events"></i>Actions</span></div></div>
+    <p class="muted owner-note">A user is counted as active when the system records a workflow action. Sign-ins and page views are not currently tracked.</p>
+    <div class="usage-chart" role="img" aria-label="Daily active users and recorded workflow actions for the last 14 days">
+      {% for day in usage %}
+        <div class="usage-day" title="{{ day.date.strftime('%d %b') }}: {{ day.active_users }} active users, {{ day.events }} actions">
+          <div class="usage-bars"><span class="usage-bar usage-bar-users" style="height: {{ day.users_height }}%"></span><span class="usage-bar usage-bar-events" style="height: {{ day.events_height }}%"></span></div>
+          <time datetime="{{ day.date.isoformat() }}">{{ day.date.strftime('%d') }}</time>
+        </div>
+      {% endfor %}
+    </div>
+    <div class="chart-axis"><span>{{ usage[0].date.strftime('%d %b') }}</span><span>{{ usage[-1].date.strftime('%d %b') }}</span></div>
+  </section>
+
+  <section class="owner-section" aria-labelledby="feedback-title">
+    <div class="owner-section-heading"><div><p class="eyebrow">TESTER REPORTS</p><h2 id="feedback-title">Feedback by AI category</h2></div><span class="owner-count">{{ uncategorized_count }} to review</span></div>
+    <p class="muted owner-note">AI classification is manual. Only feedback text is sent to the configured provider; names, emails, and institution details are not included. Review the text and confirm before processing.</p>
+    {% if uncategorized_count %}
+      <form class="ai-classify-form" method="post" action="{{ url_for('web.categorize_feedback') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label><input type="checkbox" name="confirm_ai_processing" value="yes" required> I reviewed these reports and approve sending their text to the configured AI provider.</label>
+        <button class="button button-primary" type="submit">Categorize up to 40 reports</button>
+      </form>
+    {% endif %}
+
+    {% if feedback_groups %}
+      <div class="feedback-groups">
+        {% for category, items in feedback_groups.items() %}
+          <section class="feedback-category">
+            <header><h3>{{ category|replace('_', ' ')|title }}</h3><span>{{ items|length }}</span></header>
+            {% for item in items %}
+              <article class="feedback-entry">
+                <div class="feedback-entry-meta"><span>Submitted as {{ item.category|replace('_', ' ')|title }}</span><time datetime="{{ item.created_at.isoformat() }}">{{ item.created_at.strftime('%d %b %Y') }}</time></div>
+                <p>{{ item.message }}</p>
+                <small>{{ item.page }} · {{ item.user.name if item.user else 'Former user' }}</small>
+              </article>
+            {% endfor %}
+          </section>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="owner-empty">No feedback has been submitted yet.</p>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}

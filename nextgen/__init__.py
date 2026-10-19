@@ -47,7 +47,7 @@ def create_app(test_config=None):
                 session.clear()
                 user = None
         pilot_email = app.config.get("PILOT_ADMIN_EMAIL", "").strip().lower()
-        is_pilot_owner = bool(user and pilot_email and user.email.lower() == pilot_email)
+        is_pilot_owner = bool(user and user.role == "admin" and pilot_email and user.email.lower() == pilot_email)
         return {"current_user": user, "csrf_token_value": _csrf_token_safe(),
                 "is_pilot_owner": is_pilot_owner}
 

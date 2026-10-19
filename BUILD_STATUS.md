@@ -13,7 +13,7 @@
 - Class and batch management, enrollment, teacher-class assignments, scheduled sessions and application-level clash checks. Reactivating a cancelled session now rechecks for conflicts.
 - Attendance marking/history/reporting, assignment creation/text submission, class-targeted and institution-wide notices.
 - Corrected default-date fallback for invalid stored timezone names and dashboard assignment count semantics.
-- Added a private AI Study Buddy backed by an OpenAI-compatible API configuration, private course-note upload and lexical RAG retrieval with storage limits.
+- Completed the AI Study Buddy implementation: authenticated chat and note-based quiz generation use a server-configured OpenAI-compatible provider; uploaded course notes are private and retrieved as bounded context. Mock-provider integration tests cover OpenAI-compatible calls and Ollama configuration.
 - Added classroom MCQ assessments with server-side scoring, one submission per student, deadline checks, review explanations and teacher result views.
 - Added 40 local practice questions across eight topic areas, with five questions per topic and per-account local score-history separation.
 - Responsive dashboard and marketing landing page, integrated Lovable-inspired design layer, light/dark theme and mobile bottom navigation; PWA manifest/icons and privacy-first service-worker fallback (merged stylesheet included in app-shell cache).
@@ -33,12 +33,13 @@
 - Jinja template parsing: passed (8 templates).
 - PWA manifest/icon validation and required static asset checks: passed.
 - Dependency-free course-note unit tests: 5 passed. MCQ bank checker: 40 questions across 8 topics passed. Alembic revision links pass structural validation.
+- Study Buddy chat and note-based quiz integration tests: 4 passed (`python -m pytest -q tests/test_app.py -k "study_chat or practice_quiz"`). Provider responses are mocked in these tests.
 - Render YAML parsed successfully.
 - SQLite migration chain through revision 0002 (upgrade, downgrade of revision 0002, and full downgrade): passed in an earlier available SQLAlchemy/Alembic environment. Migrations 0003 subject-catalog and 0004 classroom assessments have not been runtime-tested in this environment.
 
 ## Runtime verification still required
 
-Full Flask application tests (including the newly added import, subject and teacher-assignment tests) could not be executed in the current workspace because Flask, Flask-SQLAlchemy, Flask-Migrate, Flask-WTF and Flask-Limiter are not installed, and package downloads are unavailable. Run `pip install -r requirements-dev.txt`, `python scripts/check_release.py`, and `pytest -q` in a clean environment. Then test the same migration/API workflows against PostgreSQL before a public pilot.
+The full Flask application test suite has not yet been run in this verification pass. Study Buddy provider tests use mocked responses; live provider credentials/connectivity and the browser chat flow remain to be verified. Run `python scripts/check_release.py` and `pytest -q`, then test the same migration/API workflows against PostgreSQL before a public pilot.
 
 ## Remaining production limitations
 

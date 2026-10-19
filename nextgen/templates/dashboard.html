@@ -12,6 +12,20 @@
   <aside class="sidebar" id="sidebar">
     <a class="brand-lockup" href="{{ url_for('web.dashboard') }}"><div class="brand-mark small">N<span>+</span></div><span>NextGen<span class="brand-light">Pathashala</span></span></a>
     <div class="workspace-pill"><span class="workspace-dot"></span><div><small>WORKSPACE</small><strong>{{ institution.name }}</strong></div></div>
+    <details class="account-menu" id="accountMenu">
+      <summary class="profile-row"><div class="avatar" id="userAvatar">N</div><div class="profile-meta"><strong id="profileName">{{ current_user.name }}</strong><span id="profileRole">{{ current_user.role|title }}</span></div><span class="account-trigger-label">Account</span><span class="account-menu-caret" aria-hidden="true">⌄</span></summary>
+      <div class="account-details">
+        <dl class="account-facts">
+          <div><dt>Email</dt><dd id="profileEmail">Loading…</dd></div>
+          <div><dt>User ID</dt><dd id="profileUserId">—</dd></div>
+          <div class="student-account-fact" hidden><dt>Student ID</dt><dd id="profileStudentId">—</dd></div>
+          <div class="student-account-fact" hidden><dt>Roll number</dt><dd id="profileStudentCode">—</dd></div>
+          <div><dt>Institution</dt><dd id="profileInstitution">{{ institution.name }}</dd></div>
+        </dl>
+        <form method="post" action="{{ url_for('web.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="switch"><button class="account-menu-action" type="submit">Switch account</button></form>
+        <form method="post" action="{{ url_for('web.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="account-menu-action sign-out" type="submit">Sign out</button></form>
+      </div>
+    </details>
     <p class="nav-label">WORKSPACE</p>
     <nav class="side-nav" aria-label="Main navigation">
       <button class="nav-link active" data-section="overview"><span>⌂</span> Overview</button>
@@ -20,12 +34,12 @@
       <button class="nav-link" data-section="homework"><span>▤</span> Homework</button>
       <button class="nav-link" data-section="notices"><span>✦</span> Notices <span class="nav-count" id="noticeCount"></span></button>
       <button class="nav-link" data-section="study"><span>✧</span> Study Lab</button>
+      <button class="nav-link" data-section="study-buddy"><span>✎</span> Study Buddy</button>
       <button class="nav-link" data-section="feedback"><span>♡</span> Feedback</button>
+      <button class="nav-link" data-section="account"><span>♙</span> Account</button>
       <button class="nav-link admin-only" data-section="manage"><span>⚙</span> Classes & people</button>
     </nav>
-    <div class="sidebar-bottom"><div class="mini-help"><span>✧</span><div><strong>Keep the day in sync</strong><p>Share updates once. Keep everyone informed.</p></div></div>
-      <div class="profile-row"><div class="avatar" id="userAvatar">N</div><div class="profile-meta"><strong id="profileName">{{ current_user.name }}</strong><span id="profileRole">{{ current_user.role|title }}</span></div><form method="post" action="{{ url_for('web.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="icon-button" title="Sign out" aria-label="Sign out">↗</button></form></div>
-    </div>
+    <div class="sidebar-bottom"><div class="mini-help"><span>✧</span><div><strong>Keep the day in sync</strong><p>Share updates once. Keep everyone informed.</p></div></div></div>
   </aside>
   <main class="main main-panel">
     <header class="topbar"><button class="mobile-menu icon-button" id="mobileMenu" aria-label="Toggle navigation">☰</button><div class="breadcrumb"><span>{{ institution.name }}</span><b>/</b><strong id="currentPageName">Overview</strong></div><div class="topbar-actions"><span class="connection-status" id="connectionStatus"><span></span> Connected</span><button type="button" class="icon-button theme-toggle" id="themeToggle" aria-label="Switch to dark theme" title="Toggle colour theme">◐</button><button class="button button-soft install-button" id="installButton" hidden>Install app ↓</button><div class="top-avatar" id="topAvatar">N</div></div></header>
@@ -89,7 +103,7 @@
       </section>
 
       <section class="page-section" id="section-study">
-        <div class="page-heading"><div><p class="eyebrow">LEARN · PRACTISE · IMPROVE</p><h1>Study Lab</h1><p class="muted">Ask questions across subjects, practise MCQs and take mock tests. The AI tutor needs an administrator-configured server API key.</p></div></div>
+        <div class="page-heading"><div><p class="eyebrow">LEARN · PRACTISE · IMPROVE</p><h1>Study Lab</h1><p class="muted">Take classroom assessments, practise MCQs and work through mock tests.</p></div></div>
         <div class="dashboard-grid study-grid">
           <section class="panel staff-only panel-span-two"><div class="panel-heading"><div><h2>Create a classroom assessment</h2><p>Build a multiple-choice test for one of your classes. Scores are calculated on the server and visible to teachers.</p></div><span class="soft-tag">Teacher tools</span></div>
             <form id="assessmentForm" class="stack-form">
@@ -113,21 +127,29 @@
             </form>
           </section>
           <section class="panel panel-span-two"><div class="panel-heading"><div><h2>Classroom assessments</h2><p>Students can complete published assessments; teachers can review class results.</p></div><button class="button button-soft" id="refreshAssessments" type="button">↻ Refresh</button></div><div id="assessmentList" class="list-stack"><div class="empty-state small-empty">Loading assessments…</div></div><div id="assessmentRunner" class="assessment-runner" aria-live="polite"></div></section>
-          <section class="panel panel-span-two"><div class="panel-heading"><div><h2>Study doubt helper</h2><p>Ask questions in your own words across subjects. The AI tutor explains concepts, works through examples and helps you study.</p></div><span class="soft-tag">Study assistant</span></div>
-            <div id="studyChatLog" class="study-chat-log" aria-live="polite"><div class="study-message tutor"><strong>Study Buddy</strong><p>Hi! Ask me about your subject, course notes, a tricky concept or exam preparation.</p></div></div>
-            <form id="studyChatForm" class="study-chat-form"><label class="sr-only" for="studyQuestion">Your study question</label><textarea id="studyQuestion" rows="2" maxlength="1200" required placeholder="e.g. Explain precision vs recall with an example…"></textarea><button class="button button-primary" type="submit">Ask Study Buddy</button></form>
-            <p class="tiny muted">AI answers can make mistakes. Verify important facts and syllabus-specific answers against your teacher’s notes. Do not enter passwords or sensitive personal information.</p>
-            <div class="subsection-heading"><h3>Ask from your course notes</h3><p class="muted tiny">Upload TXT, Markdown, or text-based PDF notes (max 5 MB each). Files are private to your signed-in account.</p></div>
-            <form id="studyMaterialForm" class="inline-form"><label class="grow-field" for="studyMaterialFile">Course notes<input id="studyMaterialFile" name="file" type="file" accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf" required></label><button class="button button-soft" type="submit">Upload notes</button></form>
-            <div id="studyMaterialList" class="list-stack" aria-live="polite"><p class="muted tiny">No notes loaded yet.</p></div>
-          </section>
-          <section class="panel"><div class="panel-heading"><div><h2>Practice MCQs</h2><p>Choose a topic and practise five questions.</p></div></div>
-            <label for="practiceTopic">Topic</label><select id="practiceTopic"><option value="all">Mixed revision</option><option value="python">Python</option><option value="ml">Machine learning</option><option value="nlp">NLP</option><option value="stats">Statistics</option><option value="maths">Mathematics</option><option value="science">Science</option><option value="english">English</option><option value="commerce">Commerce</option></select>
-            <button class="button button-primary" id="startPractice" type="button" style="margin-top:12px">Start practice</button><div id="practiceArea" class="study-quiz-area" aria-live="polite"></div>
+          <section class="panel"><div class="panel-heading"><div><h2>Practice MCQs</h2><p>Practise five questions from your course notes.</p></div></div>
+            <p class="tiny muted">Course notes</p>
+            <details class="practice-note-picker" id="practiceNotesPicker"><summary id="practiceNotesSummary">Choose course notes</summary><div id="practiceNoteOptions" class="practice-note-options" role="group" aria-label="Select course notes"><p class="muted tiny">Open Study Buddy to load your notes.</p></div></details>
+            <button class="button button-primary" id="startPractice" type="button" style="margin-top:12px" disabled>Generate five questions</button><div id="practiceArea" class="study-quiz-area" aria-live="polite"></div>
           </section>
           <section class="panel"><div class="panel-heading"><div><h2>Mock test</h2><p>Ten mixed MCQs with instant scoring and explanations.</p></div></div>
             <button class="button button-soft" id="startMockTest" type="button">Start 10-question mock test</button><div id="mockTestArea" class="study-quiz-area" aria-live="polite"></div>
             <div class="subsection-heading"><h3>Recent scores on this device</h3></div><div id="studyScoreHistory" class="list-stack"><p class="muted tiny">Your local score history will appear here.</p></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="page-section" id="section-study-buddy">
+        <div class="page-heading"><div><p class="eyebrow">YOUR PERSONAL STUDY ASSISTANT</p><h1>Study Buddy</h1><p class="muted">Ask questions about concepts or get help understanding your course notes.</p></div></div>
+        <div class="dashboard-grid study-grid">
+          <section class="panel panel-span-two"><div class="panel-heading"><div><h2>Ask a study question</h2><p>Explore a topic, work through an example, or clarify a tricky concept.</p></div><span class="soft-tag">AI study assistant</span></div>
+            <div id="studyChatLog" class="study-chat-log" aria-live="polite"><div class="study-message tutor"><strong>Study Buddy</strong><p>Hi! Ask me about a subject, a tricky concept, or exam preparation.</p></div></div>
+            <form id="studyChatForm" class="study-chat-form"><label class="sr-only" for="studyQuestion">Your study question</label><textarea id="studyQuestion" rows="2" maxlength="1200" required placeholder="e.g. Explain precision vs recall with an example…"></textarea><button class="button button-primary" type="submit">Ask Study Buddy</button></form>
+            <p class="tiny muted">AI answers can make mistakes. Verify important facts and syllabus-specific answers against your teacher’s notes. Do not enter passwords or sensitive personal information.</p>
+          </section>
+          <section class="panel panel-span-two"><div class="panel-heading"><div><h2>Ask from your course notes</h2><p>Upload TXT, Markdown, or text-based PDF notes (max 5 MB each). Files are private to your signed-in account.</p></div></div>
+            <form id="studyMaterialForm" class="inline-form"><label class="grow-field" for="studyMaterialFile">Course notes<input id="studyMaterialFile" name="file" type="file" accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf" required></label><button class="button button-soft" type="submit">Upload notes</button></form>
+            <div id="studyMaterialList" class="list-stack" aria-live="polite"><p class="muted tiny">No notes loaded yet.</p></div>
           </section>
         </div>
       </section>
@@ -145,11 +167,36 @@
         <section class="panel admin-only"><div class="panel-heading"><div><h2>Feedback from this workspace</h2><p>Review comments shared by your institution's users.</p></div><button class="button button-soft" id="refreshFeedback">↻ Refresh</button></div><div id="feedbackList" class="list-stack"><div class="empty-state small-empty">No feedback submitted yet.</div></div></section>
       </section>
 
+      <section class="page-section" id="section-account">
+        <div class="page-heading"><div><p class="eyebrow">YOUR SIGN-IN</p><h1>Account</h1><p class="muted">Change your password. Your current password is required to confirm the update.</p></div></div>
+        <section class="panel">
+          <div class="panel-heading"><div><h2>Change password</h2><p>Choose a password between 10 and 128 characters.</p></div></div>
+          <form id="changePasswordForm" class="stack-form">
+            <label for="currentPassword">Current password</label><input id="currentPassword" type="password" required autocomplete="current-password">
+            <label for="newPassword">New password</label><input id="newPassword" type="password" required minlength="10" maxlength="128" autocomplete="new-password">
+            <label for="confirmPassword">Confirm new password</label><input id="confirmPassword" type="password" required minlength="10" maxlength="128" autocomplete="new-password">
+            <div><button class="button button-primary" type="submit">Change password</button></div>
+          </form>
+        </section>
+      </section>
+
       <section class="page-section" id="section-manage">
         <div class="page-heading"><div><p class="eyebrow">SET UP YOUR WORKSPACE</p><h1>Classes & people</h1><p class="muted">Create a class, add accounts and enroll students.</p></div></div>
         <div class="management-grid">
           <section class="panel"><div class="panel-heading"><div><h2>Create a class or batch</h2><p>Start with the groups your institution teaches.</p></div></div><form id="classForm" class="stack-form"><label for="className">Class / batch name</label><input id="className" required maxlength="140" placeholder="e.g. FY BSc AI — Division A"><label for="classKind">Type</label><select id="classKind"><option value="school">School</option><option value="college">College</option><option value="tuition">Tuition / coaching</option><option value="course">Short course</option><option value="other">Other</option></select><label for="classYear">Academic year <span class="optional">(optional)</span></label><input id="classYear" maxlength="30" placeholder="e.g. 2026–27"><button class="button button-primary" type="submit">Create class</button></form><div class="subsection-heading"><h3>Your classes</h3><button class="text-button" id="refreshClasses">Refresh</button></div><div id="classList" class="list-stack"></div></section>
-          <section class="panel"><div class="panel-heading"><div><h2>Add an account</h2><p>Create teacher or student login credentials.</p></div></div><form id="userForm" class="stack-form"><label for="userName">Full name</label><input id="userName" required maxlength="120" placeholder="Full name"><label for="userEmail">Email</label><input id="userEmail" required type="email" maxlength="255" placeholder="name@example.com"><label for="userRole">Role</label><select id="userRole"><option value="teacher">Teacher</option><option value="student">Student</option></select><label for="userPassword">Initial password</label><input id="userPassword" type="password" required minlength="10" autocomplete="new-password" placeholder="At least 10 characters"><button class="button button-primary" type="submit">Create account</button><p class="tiny muted">Share the initial password securely. Password reset and invitations are planned for a later release.</p></form><div class="subsection-heading"><h3>Enroll a student</h3></div><form id="enrollmentForm" class="stack-form compact-form"><label for="enrollClass">Class / batch</label><select id="enrollClass" required><option value="">Choose class</option></select><label for="enrollStudent">Student</label><select id="enrollStudent" required><option value="">Choose student</option></select><button class="button button-soft" type="submit">Enroll student</button></form></section>
+          <section class="panel"><div class="panel-heading"><div><h2>Add an account</h2><p>Create teacher or student login credentials.</p></div></div><form id="userForm" class="stack-form"><label for="userName">Full name</label><input id="userName" required maxlength="120" placeholder="Full name"><label for="userEmail">Email</label><input id="userEmail" required type="email" maxlength="255" placeholder="name@example.com"><label for="userRole">Role</label><select id="userRole"><option value="teacher">Teacher</option><option value="student">Student</option></select><label for="userPassword">Initial password</label><input id="userPassword" type="password" required minlength="10" autocomplete="new-password" placeholder="At least 10 characters"><button class="button button-primary" type="submit">Create account</button><p class="tiny muted">Share the initial password securely. Password reset and invitations are planned for a later release.</p></form><div class="subsection-heading"><h3>Enroll a student</h3></div><form id="enrollmentForm" class="stack-form compact-form"><label for="enrollClass">Class / batch</label><select id="enrollClass" required><option value="">Choose class</option></select><label for="enrollStudent">Student</label><select id="enrollStudent" required><option value="">Choose student</option></select><button class="button button-soft" type="submit">Enroll student</button></form>
+            <details class="student-import-inline admin-only">
+              <summary>Import students from Excel or CSV</summary>
+              <p class="tiny muted">Import a class list in one step. Each new student receives a one-time temporary password.</p>
+              <form id="studentImportForm" class="form-grid">
+                <label for="studentImportClass">Class / batch<select id="studentImportClass" required><option value="">Choose class</option></select></label>
+                <label for="studentImportFile">Student spreadsheet<input id="studentImportFile" type="file" accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" required><span class="field-help">Expected column headers: Name, Email. Student Code is optional. Up to 300 rows per import.</span><a class="text-button" href="{{ url_for('static', filename='student-import-template.csv') }}" download>Download CSV template</a></label>
+                <div class="form-actions"><button class="button button-primary" type="submit">Preview spreadsheet</button></div>
+              </form>
+              <div id="studentImportPreview" class="import-preview" hidden></div>
+              <div id="studentImportResult" class="import-result" hidden aria-live="polite"></div>
+            </details>
+          </section>
           <section class="panel admin-only">
             <div class="panel-heading"><div><h2>Manage subjects</h2><p>Keep a reusable subject list for each class or batch.</p></div><span class="soft-tag">Class setup</span></div>
             <form id="subjectForm" class="stack-form">
@@ -170,16 +217,6 @@
             <div class="subsection-heading"><h3>Assigned teachers</h3><button class="text-button" id="refreshClassTeachers" type="button">Refresh</button></div>
             <div id="classTeacherList" class="list-stack"><div class="empty-state small-empty">Select a class to see assigned teachers.</div></div>
           </section>
-          <section class="panel bulk-import-panel admin-only" style="grid-column:1/-1;">
-            <div class="panel-heading"><div><h2>Import students from Excel or CSV</h2><p>Save time when setting up a class with an existing student list.</p></div><span class="soft-tag">Bulk import</span></div>
-            <form id="studentImportForm" class="form-grid">
-              <label for="studentImportClass">Class / batch<select id="studentImportClass" required><option value="">Choose class</option></select></label>
-              <label for="studentImportFile">Student spreadsheet<input id="studentImportFile" type="file" accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" required><span class="field-help">Expected column headers: Name, Email. Student Code is optional. Up to 300 rows per import.</span><a class="text-button" href="{{ url_for('static', filename='student-import-template.csv') }}" download>Download CSV template</a></label>
-              <div class="form-actions"><button class="button button-primary" type="submit">Preview spreadsheet</button></div>
-            </form>
-            <div id="studentImportPreview" class="import-preview" hidden></div>
-            <div id="studentImportResult" class="import-result" hidden aria-live="polite"></div>
-          </section>
         </div>
       </section>
       <nav class="bottom-nav" id="bottomNav" aria-label="Mobile navigation">
@@ -189,7 +226,7 @@
         <button class="bn-item nav-link" data-section="homework"><span aria-hidden="true">▤</span><small>Homework</small></button>
         <button class="bn-item nav-link" data-section="notices"><span aria-hidden="true">✦</span><small>Notices</small></button>
       </nav>
-      <footer class="app-footer"><span>NextGenPathashala</span><span>One place for the school day.</span><a href="/health" target="_blank" rel="noreferrer">System status</a>{% if is_pilot_owner %}<a href="{{ url_for('web.pilot_inquiries') }}">Pilot inquiries</a>{% endif %}</footer>
+      <footer class="app-footer"><span>NextGenPathashala</span><span>One place for the school day.</span><a href="/health" target="_blank" rel="noreferrer">System status</a>{% if is_pilot_owner %}<a href="{{ url_for('web.pilot_inquiries') }}">Pilot inquiries</a><a href="{{ url_for('web.owner_admin') }}">Owner analytics</a>{% endif %}</footer>
     </div>
   </main>
 </div>

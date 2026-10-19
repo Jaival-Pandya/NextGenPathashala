@@ -40,3 +40,9 @@ label{display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:700;
 .assessment-result .data-table{min-width:560px}
 #assessmentDraftList .list-item{align-items:flex-start}
 @media(max-width:640px){.assessment-runner-card,.assessment-result{padding:12px}.assessment-runner .button{max-width:100%;white-space:normal}}
+
+.practice-note-picker{position:relative;margin-top:6px}
+.practice-note-picker summary{cursor:pointer;padding:10px 12px;border:1px solid var(--border,#dfe3ed);border-radius:8px;background:var(--surface,#fff);font-weight:600}
+.practice-note-options{position:absolute;z-index:5;top:calc(100% + 4px);left:0;right:0;max-height:220px;overflow:auto;padding:8px;border:1px solid var(--border,#dfe3ed);border-radius:8px;background:var(--surface,#fff);box-shadow:0 8px 20px #2028381c}
+.practice-note-option{display:flex;align-items:flex-start;gap:9px;padding:9px 6px;cursor:pointer;overflow-wrap:anywhere}
+.practice-note-option input{flex:0 0 auto;margin-top:3px;accent-color:#317c72}

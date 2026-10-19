@@ -276,6 +276,8 @@ class UserFeedback(db.Model):
     message = db.Column(db.Text, nullable=False)
     page = db.Column(db.String(120), nullable=False, default="dashboard")
     status = db.Column(db.String(30), nullable=False, default="new", index=True)
+    ai_category = db.Column(db.String(40))
+    ai_categorized_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow, index=True)
     institution = db.relationship("Institution")
     user = db.relationship("User")
