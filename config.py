@@ -67,6 +67,7 @@ class Config:
         "llama3.2:3b" if STUDY_AI_PROVIDER == "ollama" else "gpt-4o-mini",
     ).strip()
     STUDY_AI_TIMEOUT_SECONDS = _as_positive_int(os.environ.get("STUDY_AI_TIMEOUT_SECONDS"), 25)
+    STUDY_AI_MAX_TOKENS = _as_positive_int(os.environ.get("STUDY_AI_MAX_TOKENS"), 900)
     STUDY_WEB_SEARCH_API_KEY = os.environ.get("STUDY_WEB_SEARCH_API_KEY", "").strip()
     STUDY_WEB_SEARCH_TIMEOUT_SECONDS = _as_positive_int(os.environ.get("STUDY_WEB_SEARCH_TIMEOUT_SECONDS"), 5)
 

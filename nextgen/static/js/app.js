@@ -94,7 +94,7 @@
       accounts.unshift(account);
       try { localStorage.setItem(rememberedAccountsKey, JSON.stringify(accounts.slice(0, 8))); } catch (_) { /* Sign-in still works when storage is full or disabled. */ }
     }
-  const state = { user: null, institution: null, classes: [], users: [], students: [], sessions: [], assignments: [], notices: [], attendanceSession: null, deferredInstall: null };
+  const state = { user: null, institution: null, classes: [], users: [], students: [], sessions: [], assignments: [], notices: [], attendanceSession: null, attendanceQrTimer: null, deferredInstall: null };
   // Import state stays in memory only; never persist temporary passwords locally.
   let pendingStudentImportRows = [];
   let lastImportCredentials = [];
@@ -371,16 +371,39 @@
 
   async function openAttendance(sessionId) {
     if (!sessionId) { toast('Choose a class session first.', 'error'); return; }
-    const data = await api(`/api/v1/sessions/${sessionId}/attendance`);
     state.attendanceSession = Number(sessionId);
+    clearInterval(state.attendanceQrTimer);
+    state.attendanceQrTimer = null;
+    $('#attendanceQrImage').hidden = true;
+    $('#attendanceQrExpiry').textContent = '';
+    $('#createAttendanceQr').disabled = true;
+    const data = await api(`/api/v1/sessions/${sessionId}/attendance`);
     const rows = data.students || [];
     if (!rows.length) {
       $('#attendanceRoster').innerHTML = '<div class="empty-state">There are no enrolled students in this class yet. Enroll students from Classes & people.</div>';
       $('#attendanceActions').hidden = true;
       return;
     }
-    $('#attendanceRoster').innerHTML = `<table class="data-table"><thead><tr><th>Student</th><th>Student code</th><th>Attendance status</th></tr></thead><tbody>${rows.map(student => `<tr data-student-id="${student.student_id}"><td><strong>${escapeHtml(student.name)}</strong></td><td>${escapeHtml(student.student_code)}</td><td><select class="attendance-status" aria-label="Attendance status for ${escapeHtml(student.name)}"><option value="">Choose status…</option>${['present','absent','late','excused'].map(status => `<option value="${status}" ${student.status === status ? 'selected' : ''}>${status[0].toUpperCase() + status.slice(1)}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table><p class="status-note">Unselected rows will not be changed. Use “Excused” when appropriate under your institution's policy.</p>`;
+    $('#createAttendanceQr').disabled = false;
+    $('#attendanceRoster').innerHTML = `<table class="data-table"><thead><tr><th>Student</th><th>Student code</th><th>Attendance status</th><th>Recorded via</th></tr></thead><tbody>${rows.map(student => `<tr data-student-id="${student.student_id}"><td><strong>${escapeHtml(student.name)}</strong></td><td>${escapeHtml(student.student_code)}</td><td><select class="attendance-status" aria-label="Attendance status for ${escapeHtml(student.name)}"><option value="">Choose status…</option>${['present','absent','late','excused'].map(status => `<option value="${status}" ${student.status === status ? 'selected' : ''}>${status[0].toUpperCase() + status.slice(1)}</option>`).join('')}</select></td><td>${student.recorded_via === 'qr' ? 'QR check-in' : student.recorded ? 'Staff entry' : '—'}</td></tr>`).join('')}</tbody></table><p class="status-note">Unselected rows will not be changed. Review QR check-ins and correct any mistakes. Use “Excused” when appropriate under your institution's policy.</p>`;
     $('#attendanceActions').hidden = false;
+  }
+
+  async function createAttendanceQr() {
+    if (!state.attendanceSession) throw new Error('Open a class register first.');
+    const data = await api(`/api/v1/sessions/${state.attendanceSession}/attendance/qr`, { method: 'POST' });
+    const image = $('#attendanceQrImage');
+    image.src = data.qr_image;
+    image.hidden = false;
+    $('#attendanceQrExpiry').textContent = 'This QR expires in 60 seconds and refreshes automatically.';
+    clearInterval(state.attendanceQrTimer);
+    state.attendanceQrTimer = window.setInterval(() => {
+      createAttendanceQr().catch(error => {
+        clearInterval(state.attendanceQrTimer);
+        state.attendanceQrTimer = null;
+        showError(error);
+      });
+    }, 45000);
   }
 
   async function loadMyAttendance() {
@@ -910,8 +933,17 @@
     $('#timetableDate')?.addEventListener('change', () => loadTimetable($('#timetableDate').value).catch(showError));
     $('#refreshSessions')?.addEventListener('click', () => loadTimetable().catch(showError));
     $('#loadAttendance')?.addEventListener('click', () => openAttendance($('#attendanceSession').value).catch(showError));
+    $('#createAttendanceQr')?.addEventListener('click', () => createAttendanceQr().catch(showError));
     $('#refreshMyAttendance')?.addEventListener('click', () => loadMyAttendance().catch(showError));
     $('#attendanceDate')?.addEventListener('change', () => loadSessionsForAttendance().catch(showError));
+    $('#attendanceSession')?.addEventListener('change', () => {
+      state.attendanceSession = null;
+      clearInterval(state.attendanceQrTimer);
+      state.attendanceQrTimer = null;
+      $('#createAttendanceQr').disabled = true;
+      $('#attendanceQrImage').hidden = true;
+      $('#attendanceQrExpiry').textContent = '';
+    });
     $('#loadReport')?.addEventListener('click', () => loadReport().catch(showError));
     $('#refreshAssignments')?.addEventListener('click', () => loadAssignments().catch(showError));
     $('#refreshNotices')?.addEventListener('click', () => loadNotices().catch(showError));

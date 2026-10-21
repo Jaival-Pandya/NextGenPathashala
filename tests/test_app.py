@@ -7,7 +7,7 @@ from nextgen import create_app
 from extensions import db
 from config import normalize_database_url
 from nextgen.api import local_day_bounds
-from nextgen.models import AuditLog, Institution, PilotInquiry, UserFeedback
+from nextgen.models import AttendanceRecord, AuditLog, ClassSession, Institution, PilotInquiry, UserFeedback, utcnow
 
 
 @pytest.fixture()
@@ -212,6 +212,53 @@ def test_role_permissions_attendance_submission_and_notice(client):
     submission = api_post(client, f"/api/v1/assignments/{ids['assignment_id']}/submissions", {"response_text": "Tokenizer comparison complete."})
     assert submission.status_code == 200
     assert client.get(f"/api/v1/sessions/{ids['session_id']}/attendance").status_code == 403
+
+
+def test_qr_attendance_checkin_is_short_lived_and_reviewable(client, app):
+    ids = build_test_scenario(client)
+    with app.app_context():
+        item = db.session.get(ClassSession, ids["session_id"])
+        item.starts_at = utcnow() - timedelta(minutes=10)
+        item.ends_at = utcnow() + timedelta(minutes=50)
+        db.session.commit()
+
+    first_qr = client.post(f"/api/v1/sessions/{ids['session_id']}/attendance/qr")
+    assert first_qr.status_code == 200
+    assert first_qr.json["qr_image"].startswith("data:image/svg+xml;base64,")
+    assert first_qr.json["expires_in"] == 60
+    with app.app_context():
+        old_token = db.session.get(ClassSession, ids["session_id"]).attendance_qr_token
+
+    rotated_qr = client.post(f"/api/v1/sessions/{ids['session_id']}/attendance/qr")
+    assert rotated_qr.status_code == 200
+    with app.app_context():
+        token = db.session.get(ClassSession, ids["session_id"]).attendance_qr_token
+    assert token != old_token
+
+    client.post("/logout", follow_redirects=True)
+    client.post("/login", data={"email": "student@example.com", "password": "Student-password-123"})
+    checkin_path = f"/attendance/check-in/{ids['session_id']}?token={token}"
+    assert client.get(f"/attendance/check-in/{ids['session_id']}?token={old_token}").status_code == 410
+    page = client.get(checkin_path)
+    assert page.status_code == 200
+    assert b"Confirm check-in" in page.data
+    assert client.post(checkin_path, follow_redirects=True).status_code == 200
+    with app.app_context():
+        record = AttendanceRecord.query.filter_by(
+            session_id=ids["session_id"], student_id=ids["student_id"],
+        ).one()
+        assert record.status == "present"
+        assert record.recorded_via == "qr"
+    client.post(checkin_path, follow_redirects=True)
+    with app.app_context():
+        assert AttendanceRecord.query.filter_by(session_id=ids["session_id"]).count() == 1
+
+    client.post("/logout", follow_redirects=True)
+    client.post("/login", data={"email": "admin@example.com", "password": "A-long-test-password-123"})
+    roster = client.get(f"/api/v1/sessions/{ids['session_id']}/attendance")
+    assert roster.status_code == 200
+    student = next(row for row in roster.json["students"] if row["student_id"] == ids["student_id"])
+    assert student["recorded_via"] == "qr"
 
 
 def test_institution_isolation(client):
@@ -842,3 +889,128 @@ def test_study_chat_omits_api_key_for_ollama_and_includes_uploaded_notes(client,
     assert captured["url"] == "http://localhost:11434/v1/chat/completions"
     assert captured["authorization"] is None
     assert "Photosynthesis converts light energy" in captured["payload"]["messages"][1]["content"]
+
+
+def _provider_http_error(url, status, body, headers=None):
+    import io
+    from urllib.error import HTTPError
+
+    return HTTPError(url, status, "Provider error", headers or {}, io.BytesIO(json.dumps(body).encode()))
+
+
+def test_study_chat_reports_provider_quota_exhaustion(client, app, monkeypatch):
+    app.config.update(
+        STUDY_AI_PROVIDER="openai",
+        STUDY_AI_API_KEY="test-only-key",
+        STUDY_AI_BASE_URL="https://api.openai.com/v1",
+    )
+    register(client)
+    calls = []
+
+    def fake_urlopen(request, timeout):
+        calls.append(request.full_url)
+        raise _provider_http_error(request.full_url, 429, {"error": {
+            "type": "insufficient_quota",
+            "code": "credit_balance_exhausted",
+            "message": "You have no credits remaining. Add credits to continue using the API.",
+        }})
+
+    monkeypatch.setattr("nextgen.api.urlopen", fake_urlopen)
+    response = api_post(client, "/api/v1/study-chat", {"question": "Explain photosynthesis"})
+
+    assert response.status_code == 502
+    assert "credits" in response.json["error"].lower()
+    assert "billing" in response.json["error"].lower()
+    assert "wait a little" not in response.json["error"].lower()
+    # Quota exhaustion is permanent until an administrator acts, so it must not be retried.
+    assert len(calls) == 1
+
+
+def test_study_chat_reports_openrouter_credit_exhaustion(client, app, monkeypatch):
+    app.config.update(
+        STUDY_AI_PROVIDER="openrouter",
+        STUDY_AI_API_KEY="test-only-key",
+        STUDY_AI_BASE_URL="https://openrouter.ai/api/v1",
+        STUDY_AI_MODEL="openrouter/free",
+    )
+    register(client)
+    calls = []
+
+    def fake_urlopen(request, timeout):
+        calls.append(request.full_url)
+        raise _provider_http_error(request.full_url, 402, {"error": {
+            "code": 402,
+            "message": "Insufficient credits. Add credits to continue.",
+            "metadata": {"error_type": "insufficient_credits"},
+        }})
+
+    monkeypatch.setattr("nextgen.api.urlopen", fake_urlopen)
+    response = api_post(client, "/api/v1/study-chat", {"question": "Explain photosynthesis"})
+
+    assert response.status_code == 502
+    assert "credits" in response.json["error"].lower()
+    assert "billing" in response.json["error"].lower()
+    assert len(calls) == 1
+
+
+def test_study_chat_reports_provider_rate_limit_with_retry_after(client, app, monkeypatch):
+    app.config.update(
+        STUDY_AI_PROVIDER="openai",
+        STUDY_AI_API_KEY="test-only-key",
+        STUDY_AI_BASE_URL="https://api.openai.com/v1",
+    )
+    register(client)
+    calls = []
+
+    def fake_urlopen(request, timeout):
+        calls.append(request.full_url)
+        raise _provider_http_error(request.full_url, 429, {"error": {
+            "type": "rate_limit_exceeded",
+            "code": "rate_limit_exceeded",
+            "message": "Rate limit reached for requests per minute.",
+        }}, headers={"Retry-After": "3"})
+
+    monkeypatch.setattr("nextgen.api.urlopen", fake_urlopen)
+    response = api_post(client, "/api/v1/study-chat", {"question": "Explain photosynthesis"})
+
+    assert response.status_code == 502
+    assert "rate limit" in response.json["error"].lower()
+    assert "3 seconds" in response.json["error"]
+    # A wait longer than the retry window is surfaced to the student instead of blocking the request.
+    assert len(calls) == 1
+
+
+def test_study_chat_retries_one_transient_provider_rate_limit(client, app, monkeypatch):
+    app.config.update(
+        STUDY_AI_PROVIDER="openai",
+        STUDY_AI_API_KEY="test-only-key",
+        STUDY_AI_BASE_URL="https://api.openai.com/v1",
+    )
+    register(client)
+    calls = []
+    sleeps = []
+
+    class FakeResponse:
+        def __enter__(self): return self
+        def __exit__(self, *_args): return False
+        def read(self):
+            return json.dumps({"choices": [{"message": {"content": "A retried answer."}}]}).encode()
+
+    def fake_urlopen(request, timeout):
+        calls.append(request.full_url)
+        if len(calls) == 1:
+            raise _provider_http_error(request.full_url, 429, {"error": {
+                "type": "rate_limit_exceeded",
+                "code": "rate_limit_exceeded",
+                "message": "Rate limit reached for requests per minute.",
+            }})
+        return FakeResponse()
+
+    monkeypatch.setattr("nextgen.api.urlopen", fake_urlopen)
+    monkeypatch.setattr("nextgen.api._time.sleep", sleeps.append)
+    response = api_post(client, "/api/v1/study-chat", {"question": "Explain photosynthesis"})
+
+    assert response.status_code == 200, response.json
+    assert response.json["answer"] == "A retried answer."
+    assert len(calls) == 2
+    assert sleeps == [0.25]

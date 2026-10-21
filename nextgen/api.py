@@ -1,6 +1,9 @@
 """Versioned JSON API. All private queries are scoped to the user's institution."""
 from datetime import date, datetime, time, timedelta, timezone
+import base64
+from io import BytesIO
 import secrets
+import time as _time
 import uuid
 import json
 from urllib.request import Request, urlopen
@@ -8,10 +11,12 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from functools import wraps
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-from flask import Blueprint, current_app, g, jsonify, request, session
+from flask import Blueprint, current_app, g, jsonify, request, session, url_for
 from werkzeug.utils import secure_filename
 from pathlib import Path
 import re
+import qrcode
+from qrcode.image.svg import SvgPathImage
 from sqlalchemy import and_, false, func, or_
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from werkzeug.exceptions import abort
@@ -757,7 +762,8 @@ def session_attendance(session_id):
         for student in students:
             record = existing.get(student.id)
             roster.append({"student_id": student.id, "name": student.user.name, "student_code": student.student_code,
-                           "status": record.status if record else "", "recorded": record is not None})
+                           "status": record.status if record else "", "recorded": record is not None,
+                           "recorded_via": record.recorded_via if record else ""})
         return jsonify({"session": session_dict(item), "students": roster,
                         "allowed_statuses": sorted(ATTENDANCE_STATUSES)})
     data = body_json()
@@ -794,6 +800,34 @@ def session_attendance(session_id):
         current_app.logger.exception("Attendance save failed")
         return jsonify({"error": "Attendance could not be saved. Please retry."}), 500
     return jsonify({"message": "Attendance saved.", "records_saved": len(records)})
+
+
+@api_bp.post("/sessions/<int:session_id>/attendance/qr")
+@api_auth_required
+def create_attendance_qr(session_id):
+    user = current_user()
+    item = ClassSession.query.filter_by(id=session_id, institution_id=user.institution_id).first_or_404()
+    if user.role not in {"admin", "teacher"} or not can_access_session(user, item):
+        return jsonify({"error": "You cannot manage attendance for this class."}), 403
+    if item.status != "scheduled":
+        return jsonify({"error": "QR check-in is only available for scheduled sessions."}), 400
+
+    item.attendance_qr_token = secrets.token_urlsafe(32)
+    item.attendance_qr_expires_at = utcnow() + timedelta(seconds=60)
+    check_in_url = url_for(
+        "web.attendance_check_in", session_id=item.id,
+        token=item.attendance_qr_token, _external=True,
+    )
+    qr = qrcode.QRCode(box_size=6, border=2)
+    qr.add_data(check_in_url)
+    image = qr.make_image(image_factory=SvgPathImage)
+    output = BytesIO()
+    image.save(output)
+    db.session.commit()
+    return jsonify({
+        "qr_image": "data:image/svg+xml;base64," + base64.b64encode(output.getvalue()).decode("ascii"),
+        "expires_in": 60,
+    })
 
 
 @api_bp.get("/attendance/mine")
@@ -1368,6 +1402,93 @@ def _search_study_web(question):
     return "\n\n".join(snippets)
 
 
+class _ProviderHTTPError(Exception):
+    """Normalized AI-provider failure carrying the upstream status and error details."""
+
+    def __init__(self, status, code, detail, retry_after):
+        super().__init__(detail or code or f"HTTP {status}")
+        self.status = status
+        self.code = code
+        self.detail = detail
+        self.retry_after = retry_after
+
+
+def _provider_error_details(error):
+    """Read an OpenAI-compatible error body without ever logging credentials."""
+    try:
+        raw = error.read()
+        payload = json.loads(raw.decode("utf-8", errors="replace")) if raw else {}
+    except (OSError, ValueError, TypeError, AttributeError):
+        payload = {}
+    provider_error = payload.get("error") if isinstance(payload, dict) else None
+    if isinstance(provider_error, dict):
+        metadata = provider_error.get("metadata") if isinstance(provider_error.get("metadata"), dict) else {}
+        code = str(
+            metadata.get("error_type")
+            or metadata.get("provider_code")
+            or provider_error.get("code")
+            or provider_error.get("type")
+            or ""
+        ).strip().lower()
+        detail = str(provider_error.get("message") or "").strip()
+    else:
+        code = ""
+        detail = str(provider_error or "").strip()
+    try:
+        retry_after = str((error.headers or {}).get("Retry-After") or "").strip()
+    except AttributeError:
+        retry_after = ""
+    return code[:120], detail[:500], retry_after[:120]
+
+
+def _is_quota_error(code, detail):
+    """Distinguish exhausted credits/billing from a short-lived rate limit."""
+    text = f"{code} {detail}".lower()
+    return any(marker in text for marker in (
+        "insufficient_quota", "exceeded your current quota", "billing", "credit", "payment",
+    ))
+
+
+def _retry_after_seconds(retry_after):
+    try:
+        return max(0.0, float(retry_after))
+    except (TypeError, ValueError):
+        return None
+
+
+def _provider_retry_delay(retry_after, attempt):
+    """Return a bounded wait, or None when the provider asked for a long pause."""
+    seconds = _retry_after_seconds(retry_after)
+    if seconds is not None:
+        return seconds if seconds <= 2 else None
+    return 0.25 * (attempt + 1)
+
+
+def _provider_request_json(req, timeout, attempts=2):
+    """Call an OpenAI-compatible endpoint, retrying only short transient failures."""
+    for attempt in range(max(1, attempts)):
+        try:
+            with urlopen(req, timeout=timeout) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except HTTPError as exc:
+            code, detail, retry_after = _provider_error_details(exc)
+            delay = _provider_retry_delay(retry_after, attempt)
+            retryable = (
+                not _is_quota_error(code, detail)
+                and delay is not None
+                and attempt + 1 < attempts
+                and (exc.code == 429 or exc.code in {500, 502, 503, 504})
+            )
+            if retryable:
+                current_app.logger.warning(
+                    "Study AI provider returned transient HTTP %s (code=%s); retrying in %.2fs: %s",
+                    exc.code, code or "unknown", delay, detail or "no provider detail",
+                )
+                _time.sleep(delay)
+                continue
+            raise _ProviderHTTPError(exc.code, code, detail, retry_after) from exc
+
+
 @api_bp.post("/study-materials/practice-quiz")
 @limiter.limit("5 per minute")
 @api_auth_required
@@ -1426,8 +1547,7 @@ def generate_study_material_quiz():
         method="POST",
     )
     try:
-        with urlopen(req, timeout=current_app.config.get("STUDY_AI_TIMEOUT_SECONDS", 25)) as response:
-            result = json.loads(response.read().decode("utf-8"))
+        result = _provider_request_json(req, current_app.config.get("STUDY_AI_TIMEOUT_SECONDS", 25))
         content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
         if isinstance(content, list):
             content = "\n".join(part.get("text", "") for part in content if isinstance(part, dict))
@@ -1458,9 +1578,19 @@ def generate_study_material_quiz():
                 "answer": answer, "why": explanation.strip(),
             })
         return jsonify({"questions": validated, "label": "Notes · " + ", ".join(materials[doc_id]["name"] for doc_id in material_ids)})
-    except HTTPError as exc:
-        current_app.logger.warning("Study quiz provider HTTP error: %s", exc.code)
-        return jsonify({"error": "The AI provider could not generate a quiz right now. Please try again shortly."}), 502
+    except _ProviderHTTPError as exc:
+        current_app.logger.warning(
+            "Study quiz provider HTTP error %s (code=%s, retry_after=%s): %s",
+            exc.status, exc.code or "unknown", exc.retry_after or "none", exc.detail or "no provider detail",
+        )
+        if exc.status == 402 or _is_quota_error(exc.code, exc.detail):
+            message = ("The AI provider account has insufficient credits or a billing problem. "
+                       "Ask the app administrator to check the provider plan, credits and billing details.")
+        elif exc.status == 429:
+            message = "The AI provider is busy or has reached its rate limit. Please wait a little and try again."
+        else:
+            message = "The AI provider could not generate a quiz right now. Please try again shortly."
+        return jsonify({"error": message}), 502
     except (URLError, TimeoutError, json.JSONDecodeError, KeyError, IndexError, TypeError, ValueError):
         current_app.logger.exception("Study quiz provider request failed or returned invalid data")
         return jsonify({"error": "Could not generate a quiz from these notes right now. Please try again."}), 502
@@ -1523,7 +1653,7 @@ def study_chat():
     payload = {
         "model": model,
         "temperature": 0.3,
-        "max_tokens": 900,
+        "max_tokens": current_app.config.get("STUDY_AI_MAX_TOKENS", 900),
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_content}
@@ -1539,8 +1669,7 @@ def study_chat():
         method="POST"
     )
     try:
-        with urlopen(req, timeout=current_app.config.get("STUDY_AI_TIMEOUT_SECONDS", 25)) as response:
-            result = json.loads(response.read().decode("utf-8"))
+        result = _provider_request_json(req, current_app.config.get("STUDY_AI_TIMEOUT_SECONDS", 25))
         answer = result.get("choices", [{}])[0].get("message", {}).get("content", "")
         if isinstance(answer, list):
             answer = "\n".join(part.get("text", "") for part in answer if isinstance(part, dict))
@@ -1549,12 +1678,23 @@ def study_chat():
             current_app.logger.warning("Study AI provider returned an empty answer")
             return jsonify({"error": "The tutor returned an empty answer. Please try asking another way."}), 502
         return jsonify({"answer": answer, "model": model})
-    except HTTPError as exc:
-        current_app.logger.warning("Study AI provider HTTP error: %s", exc.code)
-        if exc.code in (401, 403):
+    except _ProviderHTTPError as exc:
+        current_app.logger.warning(
+            "Study AI provider HTTP error %s (code=%s, retry_after=%s): %s",
+            exc.status, exc.code or "unknown", exc.retry_after or "none", exc.detail or "no provider detail",
+        )
+        if exc.status in (401, 403):
             message = "The AI tutor configuration was rejected. Please ask the app administrator to check the server AI credentials."
-        elif exc.code == 429:
-            message = "The AI tutor is busy or has reached its provider limit. Please wait a little and try again."
+        elif exc.status == 402 or _is_quota_error(exc.code, exc.detail):
+            message = ("The AI provider account has insufficient credits or a billing problem. "
+                       "Please ask the app administrator to check the provider plan, credits and billing details.")
+        elif exc.status == 429:
+            retry_seconds = _retry_after_seconds(exc.retry_after)
+            wait = (f" Please try again in about {max(1, int(retry_seconds))} seconds."
+                    if retry_seconds and retry_seconds >= 1 else " Please wait a little and try again.")
+            message = "The AI tutor is busy or has reached its provider rate limit." + wait
+        elif exc.status == 404:
+            message = "The configured AI model is not available. Please ask the app administrator to check STUDY_AI_MODEL."
         else:
             message = "The AI tutor provider could not answer right now. Please try again shortly."
         return jsonify({"error": message}), 502

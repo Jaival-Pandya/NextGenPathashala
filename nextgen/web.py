@@ -1,6 +1,7 @@
 """HTML routes for registration and the authenticated dashboard."""
 import json
 from datetime import datetime, time, timedelta
+import secrets
 from urllib.parse import urlparse
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -9,7 +10,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from extensions import db, limiter
-from nextgen.models import AuditLog, Institution, PilotInquiry, Student, User, UserFeedback, utcnow
+from nextgen.models import (AttendanceRecord, AuditLog, ClassSession, Enrollment,
+                            Institution, PilotInquiry, Student, User, UserFeedback, utcnow)
 
 web_bp = Blueprint("web", __name__)
 
@@ -33,6 +35,59 @@ def home():
             return redirect(url_for("web.dashboard"))
         session.clear()
     return render_template("home.html")
+
+
+@web_bp.route("/attendance/check-in/<int:session_id>", methods=["GET", "POST"])
+def attendance_check_in(session_id):
+    user_id = session.get("user_id")
+    user = db.session.get(User, user_id) if user_id else None
+    if not user or not user.is_active or not user.institution or not user.institution.is_active:
+        return redirect(url_for("web.login", next=request.full_path))
+    if user.role != "student":
+        abort(403)
+
+    item = ClassSession.query.filter_by(
+        id=session_id, institution_id=user.institution_id, status="scheduled",
+    ).first_or_404()
+    token = request.args.get("token", "")
+    now = utcnow()
+    if (not item.attendance_qr_token or not item.attendance_qr_expires_at
+            or not secrets.compare_digest(token, item.attendance_qr_token)
+            or item.attendance_qr_expires_at <= now):
+        abort(410, description="This QR code has expired. Ask your teacher to display a new one.")
+
+    student = Student.query.filter_by(user_id=user.id, institution_id=user.institution_id).first()
+    enrolled = student and Enrollment.query.filter_by(
+        class_id=item.class_id, student_id=student.id, status="active",
+    ).first()
+    if not enrolled:
+        abort(403)
+
+    existing = AttendanceRecord.query.filter_by(session_id=item.id, student_id=student.id).first()
+    if request.method == "POST":
+        if existing:
+            flash("Your attendance is already recorded. Ask your teacher if it needs correcting.", "success")
+            return redirect(url_for("web.attendance_check_in", session_id=item.id, token=token))
+        if now < item.starts_at - timedelta(minutes=30) or now > item.ends_at + timedelta(minutes=30):
+            abort(410, description="Check-in is available from 30 minutes before the session until 30 minutes after it ends.")
+        db.session.add(AttendanceRecord(
+            session_id=item.id, student_id=student.id, status="present",
+            recorded_via="qr", marked_by=None,
+        ))
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            flash("Your attendance is already recorded. Ask your teacher if it needs correcting.", "success")
+            return redirect(url_for("web.attendance_check_in", session_id=item.id, token=token))
+        except SQLAlchemyError:
+            db.session.rollback()
+            current_app.logger.exception("QR attendance check-in failed")
+            abort(500, description="Your check-in could not be saved. Please ask your teacher to mark attendance.")
+        flash("You are checked in. Your teacher can review this attendance entry.", "success")
+        return redirect(url_for("web.attendance_check_in", session_id=item.id, token=token))
+
+    return render_template("attendance_check_in.html", class_session=item, already_recorded=existing is not None)
 
 
 @web_bp.post("/pilot-request")

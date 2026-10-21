@@ -46,3 +46,7 @@ label{display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:700;
 .practice-note-options{position:absolute;z-index:5;top:calc(100% + 4px);left:0;right:0;max-height:220px;overflow:auto;padding:8px;border:1px solid var(--border,#dfe3ed);border-radius:8px;background:var(--surface,#fff);box-shadow:0 8px 20px #2028381c}
 .practice-note-option{display:flex;align-items:flex-start;gap:9px;padding:9px 6px;cursor:pointer;overflow-wrap:anywhere}
 .practice-note-option input{flex:0 0 auto;margin-top:3px;accent-color:#317c72}
+.qr-attendance{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:18px 0;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.qr-attendance p{max-width:580px;margin-bottom:8px}
+.qr-attendance img{width:min(190px,40vw);height:auto;background:#fff;border:8px solid #fff;border-radius:8px}
+@media(max-width:600px){.qr-attendance{align-items:flex-start;flex-direction:column}.qr-attendance img{align-self:center}}

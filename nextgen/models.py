@@ -135,6 +135,8 @@ class ClassSession(db.Model):
     starts_at = db.Column(db.DateTime, nullable=False, index=True)  # stored UTC-naive
     ends_at = db.Column(db.DateTime, nullable=False)
     status = db.Column(db.String(20), nullable=False, default="scheduled")
+    attendance_qr_token = db.Column(db.String(64))
+    attendance_qr_expires_at = db.Column(db.DateTime)
     created_by = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
     institution = db.relationship("Institution")
@@ -151,6 +153,7 @@ class AttendanceRecord(db.Model):
     session_id = db.Column(db.Integer, db.ForeignKey("class_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
     student_id = db.Column(db.Integer, db.ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True)
     status = db.Column(db.String(20), nullable=False)
+    recorded_via = db.Column(db.String(20), nullable=False, default="manual")
     marked_by = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
     marked_at = db.Column(db.DateTime, nullable=False, default=utcnow)
     session = db.relationship("ClassSession", back_populates="attendance_records")

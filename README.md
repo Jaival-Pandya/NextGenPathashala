@@ -12,7 +12,7 @@ NextGenPathashala is an early-access web application for schools, colleges and t
 - Role-aware administrator, teacher and student workflows.
 - Class and batch management, class-scoped subject catalog (seeded from existing scheduled subjects), explicit class-to-teacher assignments, student enrollment, session scheduling and basic conflict checks.
 - Teacher-created classroom MCQ assessments, server-side scoring, one submission per student, answer explanations, deadlines and class-scoped result review.
-- Attendance register, student attendance history, and attendance reports.
+- Attendance register, student attendance history, attendance reports, and short-lived student QR check-ins with teacher review.
 - Homework creation and text submissions.
 - Institution-wide and class-targeted notices.
 - In-app feedback submitted by testers; workspace administrators can review feedback from their own institution.
@@ -98,9 +98,9 @@ python app.py
 3. Add one teacher and one fictional student account.
 4. Enroll the student into the class.
 5. Open **Timetable** and schedule one session, assigning the teacher.
-6. Sign out and sign in as the teacher in a separate browser profile; open Attendance and mark the sample student.
+6. Sign out and sign in as the teacher in a separate browser profile; open Attendance, select the session and open the register. Generate a QR code for student check-in; it expires after 60 seconds and refreshes automatically. A student signs in, scans it with a phone camera, confirms check-in, and the teacher reviews or corrects the entry in the register. Manual attendance remains available.
 7. Publish one homework assignment and one class-targeted notice.
-8. Sign in as the student and confirm that the timetable, attendance, homework and notice are visible.
+8. Sign in as the student and confirm that the timetable, attendance, homework and notice are visible. Students can confirm attendance only for an enrolled session during its check-in window; QR codes expire and cannot overwrite an existing register entry.
 9. Open **Study Lab**. A teacher/admin can create a class MCQ assessment, publish it and review submissions; a student in that class can take it once and view explanations after submitting.
 10. Open **Practice MCQs** and confirm five questions are available in each topic: Python, ML, NLP, statistics, mathematics, science, English and commerce.
 11. Open **Study Buddy** to ask a study question or upload a disposable TXT note. Verify it appears with its extension, ask a question using terms from the note, then remove it and confirm it disappears.
@@ -196,13 +196,27 @@ tests/                                  # automated integration tests
 
 The Study Buddy supports open-ended questions through an OpenAI-compatible chat-completions API, including local Ollama. Configure these environment variables in your **server/hosting dashboard** (not in frontend JavaScript):
 
-- `STUDY_AI_PROVIDER` — defaults to `openai`; set to `ollama` to use a local Ollama server.
+- `STUDY_AI_PROVIDER` — defaults to `openai`; set to `ollama` for a local model or `openrouter` for OpenRouter.
 - `STUDY_AI_API_KEY` — secret provider API key; optional for Ollama.
-- `STUDY_AI_BASE_URL` — defaults to `https://api.openai.com/v1`, or `http://localhost:11434/v1` for Ollama.
-- `STUDY_AI_MODEL` — defaults to `gpt-4o-mini`, or `llama3.2:3b` for Ollama.
-- `STUDY_AI_TIMEOUT_SECONDS` — defaults to `25`.
+- `STUDY_AI_BASE_URL` — defaults to `https://api.openai.com/v1`, or `http://localhost:11434/v1` for Ollama. OpenRouter uses `https://openrouter.ai/api/v1`.
+- `STUDY_AI_MODEL` — defaults to `gpt-4o-mini`, or `llama3.2:3b` for Ollama. OpenRouter examples: `openrouter/free` or a pinned `:free` model.
+- `STUDY_AI_TIMEOUT_SECONDS` — defaults to `25`; raise it for slower free models.
+- `STUDY_AI_MAX_TOKENS` — defaults to `900`; raise it when a reasoning model consumes the budget before answering.
 - `STUDY_WEB_SEARCH_API_KEY` — optional Brave Search API key. Web search runs only when private uploaded-note retrieval finds no match.
 - `STUDY_WEB_SEARCH_TIMEOUT_SECONDS` — defaults to `5`; a failed or timed-out search does not prevent a general AI answer.
+
+OpenRouter example:
+
+```env
+STUDY_AI_PROVIDER=openrouter
+STUDY_AI_API_KEY=your-openrouter-key
+STUDY_AI_BASE_URL=https://openrouter.ai/api/v1
+STUDY_AI_MODEL=openrouter/free
+STUDY_AI_TIMEOUT_SECONDS=40
+STUDY_AI_MAX_TOKENS=1600
+```
+
+OpenRouter's free models are rate-limited (currently 20 requests/minute and 50 requests/day, or 1,000/day after purchasing at least $10 of credits) and may be used for provider training unless you change the privacy settings. Review OpenRouter's data policies before sending student notes.
 
 For Ollama, install and run Ollama on the same machine/network accessible to the app server, then pull the configured model (for example, `ollama pull llama3.2:3b`). `localhost` means the machine running the Flask app, not an individual student's device. Restart/redeploy the server after setting configuration. Never commit a real API key or place it in HTML/JavaScript. The chat endpoint requires a signed-in user, CSRF validation, a 2,000-character question limit and a rate limit. Hosted provider usage may incur charges. AI can make mistakes; students should verify course-specific answers with their instructors and notes.
 

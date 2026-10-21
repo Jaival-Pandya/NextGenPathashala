@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Attendance check-in — NextGenPathashala{% endblock %}
+{% block content %}
+<main class="container" style="max-width: 560px; padding-top: 3rem;">
+  <section class="panel">
+    <p class="eyebrow">STUDENT CHECK-IN</p>
+    <h1>{{ class_session.subject }}</h1>
+    <p class="muted">{{ class_session.class_group.name }} · {{ class_session.starts_at.strftime("%d %b %Y, %H:%M") }}</p>
+    {% if already_recorded %}
+      <p role="status">Your attendance is already recorded. If this is incorrect, ask your teacher to review the register.</p>
+    {% else %}
+      <p>Confirm that you are attending this class. Your teacher can review and correct the entry.</p>
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button button-primary" type="submit">Confirm check-in</button>
+      </form>
+    {% endif %}
+    <p><a href="{{ url_for('web.dashboard') }}">Return to your dashboard</a></p>
+  </section>
+</main>
+{% endblock %}
